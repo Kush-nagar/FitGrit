@@ -415,7 +415,7 @@ class _DailyCalorieCardWidgetState extends State<DailyCalorieCardWidget>
                     borderRadius: BorderRadius.circular(3),
                   ),
                 ),
-                Container(
+                SizedBox(
                   height: 6,
                   width: double.infinity,
                   child: FractionallySizedBox(

@@ -6,13 +6,14 @@ import 'package:image_picker/image_picker.dart';
 import 'package:permission_handler/permission_handler.dart';
 
 import '../../core/app_export.dart';
+import '../../core/config/app_config.dart';
+import '../../services/gemini_service.dart';
 import '../../widgets/custom_app_bar.dart';
 import '../../widgets/custom_bottom_bar.dart';
 import '../../widgets/custom_icon_widget.dart';
 import './widgets/camera_controls_widget.dart';
 import './widgets/camera_preview_widget.dart';
 import './widgets/confidence_overlay_widget.dart';
-import './widgets/recognition_result_sheet.dart';
 
 class CameraScanScreen extends StatefulWidget {
   const CameraScanScreen({super.key});
@@ -30,10 +31,11 @@ class _CameraScanScreenState extends State<CameraScanScreen>
   bool _isProcessing = false;
   XFile? _capturedImage;
 
+  late GeminiService _geminiService;
+
   // Recognition data
   String? _recognizedFood;
   double? _confidenceScore;
-  int? _estimatedCalories;
   bool _showConfidenceOverlay = false;
 
   // Animation controllers
@@ -45,6 +47,14 @@ class _CameraScanScreenState extends State<CameraScanScreen>
   @override
   void initState() {
     super.initState();
+
+    // Initialize Gemini Service with configuration
+    _geminiService = GeminiService(
+      apiKey: AppConfig.geminiApiKey,
+      model: AppConfig.geminiModel,
+      maxDimension: AppConfig.maxImageDimension,
+    );
+
     _initializeAnimations();
     _initializeCamera();
   }
@@ -216,70 +226,61 @@ class _CameraScanScreenState extends State<CameraScanScreen>
   }
 
   Future<void> _processImage(XFile image) async {
-    // Simulate AI processing with hardcoded confidence scores
-    await Future.delayed(const Duration(milliseconds: 1500));
+    try {
+      // Call Gemini API to detect foods
+      final rawResults = await _geminiService.detectFoods(image.path);
 
-    // Mock food recognition data
-    final mockFoods = [
-      {'name': 'Grilled Chicken Breast', 'confidence': 0.92, 'calories': 165},
-      {'name': 'Caesar Salad', 'confidence': 0.88, 'calories': 184},
-      {'name': 'Salmon Fillet', 'confidence': 0.85, 'calories': 206},
-      {'name': 'Avocado Toast', 'confidence': 0.79, 'calories': 250},
-      {'name': 'Greek Yogurt Bowl', 'confidence': 0.73, 'calories': 150},
-      {'name': 'Quinoa Bowl', 'confidence': 0.68, 'calories': 222},
-      {'name': 'Protein Smoothie', 'confidence': 0.55, 'calories': 180},
-      {'name': 'Mixed Vegetables', 'confidence': 0.48, 'calories': 85},
-    ];
+      if (rawResults.isEmpty) {
+        _showNoFoodDetectedDialog();
+        setState(() {
+          _isProcessing = false;
+        });
+        return;
+      }
 
-    final randomFood = (mockFoods..shuffle()).first;
+      // Take the highest confidence result
+      final topResult = rawResults.reduce((a, b) =>
+          (a['confidence'] as double) > (b['confidence'] as double) ? a : b);
 
-    setState(() {
-      _recognizedFood = randomFood['name'] as String;
-      _confidenceScore = randomFood['confidence'] as double;
-      _estimatedCalories = randomFood['calories'] as int;
-      _showConfidenceOverlay = true;
-    });
+      final foodName = topResult['name'] as String;
+      final confidence = (topResult['confidence'] as num).toDouble();
 
-    _overlayAnimationController.forward();
+      setState(() {
+        _recognizedFood = foodName;
+        _confidenceScore = confidence;
+        _showConfidenceOverlay = true;
+      });
 
-    // Show result sheet after brief delay
-    await Future.delayed(const Duration(milliseconds: 800));
-    _showRecognitionResultSheet();
+      _overlayAnimationController.forward();
+
+      // Show result sheet after brief delay
+      await Future.delayed(const Duration(milliseconds: 800));
+      _showRecognitionResultSheet();
+    } catch (e) {
+      _showProcessingErrorDialog(e.toString());
+      setState(() {
+        _isProcessing = false;
+      });
+    }
   }
 
   void _showRecognitionResultSheet() {
-    showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.transparent,
-      builder: (context) => RecognitionResultSheet(
-        foodName: _recognizedFood!,
-        confidence: _confidenceScore!,
-        calories: _estimatedCalories!,
-        imagePath: _capturedImage!.path,
-        onConfirm: _confirmRecognition,
-        onEdit: _editRecognition,
-        onManualEntry: _switchToManualEntry,
-      ),
+    // Navigate to recognition results screen
+    Navigator.pushNamed(
+      context,
+      '/recognition-results-screen',
+      arguments: {
+        'imagePath': _capturedImage!.path,
+        'imageSource': 'camera',
+        'detectedIngredients': [
+          {
+            'name': _recognizedFood!,
+            'confidence': _confidenceScore!,
+            'category': 'detected',
+          }
+        ],
+      },
     );
-  }
-
-  void _confirmRecognition() {
-    HapticFeedback.mediumImpact();
-    Navigator.pop(context);
-    Navigator.pushNamed(context, '/food-log-history-screen');
-  }
-
-  void _editRecognition() {
-    HapticFeedback.lightImpact();
-    Navigator.pop(context);
-    // Navigate to edit screen (would be implemented separately)
-  }
-
-  void _switchToManualEntry() {
-    HapticFeedback.lightImpact();
-    Navigator.pop(context);
-    // Navigate to manual entry screen (would be implemented separately)
   }
 
   void _retakePhoto() {
@@ -288,7 +289,6 @@ class _CameraScanScreenState extends State<CameraScanScreen>
       _capturedImage = null;
       _recognizedFood = null;
       _confidenceScore = null;
-      _estimatedCalories = null;
       _showConfidenceOverlay = false;
     });
     _overlayAnimationController.reset();
@@ -384,6 +384,82 @@ class _CameraScanScreenState extends State<CameraScanScreen>
           ElevatedButton(
             onPressed: () => Navigator.pop(context),
             child: const Text('OK'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showNoFoodDetectedDialog() {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('No Food Detected'),
+        content: const Text(
+            'Could not detect any food items in the image. Please try again with a clearer photo.'),
+        actions: [
+          ElevatedButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('OK'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showProcessingErrorDialog(String error) {
+    // Check if it's an API configuration error
+    final isApiError = error.contains('API') ||
+        error.contains('403') ||
+        error.contains('denied');
+
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text(
+          isApiError ? 'API Configuration Error' : 'Processing Failed',
+          style: const TextStyle(fontWeight: FontWeight.bold),
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text('Failed to process image:'),
+            const SizedBox(height: 8),
+            Text(
+              error,
+              style: const TextStyle(
+                fontSize: 12,
+                fontStyle: FontStyle.italic,
+              ),
+            ),
+            if (isApiError) ...[
+              const SizedBox(height: 16),
+              const Text(
+                'To fix this:',
+                style: TextStyle(fontWeight: FontWeight.bold),
+              ),
+              const SizedBox(height: 8),
+              const Text(
+                '1. Enable the Generative Language API in Google Cloud Console\n'
+                '2. Verify your API key is valid\n'
+                '3. Check API quota limits',
+                style: TextStyle(fontSize: 12),
+              ),
+            ],
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Close'),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              Navigator.pop(context);
+              _retakePhoto();
+            },
+            child: const Text('Try Again'),
           ),
         ],
       ),
