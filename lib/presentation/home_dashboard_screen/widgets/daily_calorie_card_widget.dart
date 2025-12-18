@@ -12,12 +12,18 @@ import 'dart:math' as math;
 class DailyCalorieCardWidget extends StatefulWidget {
   final int currentCalories;
   final int targetCalories;
+  final double currentProtein;
+  final double currentCarbs;
+  final double currentFat;
   final VoidCallback? onTap;
 
   const DailyCalorieCardWidget({
     super.key,
     required this.currentCalories,
     required this.targetCalories,
+    this.currentProtein = 0,
+    this.currentCarbs = 0,
+    this.currentFat = 0,
     this.onTap,
   });
 
@@ -323,10 +329,16 @@ class _DailyCalorieCardWidgetState extends State<DailyCalorieCardWidget>
                                   child: _buildMacroItem(
                                     context,
                                     'Carbs',
-                                    '156g',
-                                    '45%',
+                                    '${widget.currentCarbs.toInt()}g',
+                                    _calculateMacroPercentage(
+                                        widget.currentCarbs,
+                                        widget.currentProtein,
+                                        widget.currentFat),
                                     theme.colorScheme.secondary,
-                                    0.45,
+                                    _calculateMacroProgress(
+                                        widget.currentCarbs,
+                                        widget.currentProtein,
+                                        widget.currentFat),
                                   ),
                                 ),
                                 SizedBox(width: 3.w),
@@ -334,10 +346,16 @@ class _DailyCalorieCardWidgetState extends State<DailyCalorieCardWidget>
                                   child: _buildMacroItem(
                                     context,
                                     'Protein',
-                                    '89g',
-                                    '25%',
+                                    '${widget.currentProtein.toInt()}g',
+                                    _calculateMacroPercentage(
+                                        widget.currentProtein,
+                                        widget.currentCarbs,
+                                        widget.currentFat),
                                     theme.colorScheme.primary,
-                                    0.25,
+                                    _calculateMacroProgress(
+                                        widget.currentProtein,
+                                        widget.currentCarbs,
+                                        widget.currentFat),
                                   ),
                                 ),
                                 SizedBox(width: 3.w),
@@ -345,10 +363,16 @@ class _DailyCalorieCardWidgetState extends State<DailyCalorieCardWidget>
                                   child: _buildMacroItem(
                                     context,
                                     'Fats',
-                                    '48g',
-                                    '30%',
+                                    '${widget.currentFat.toInt()}g',
+                                    _calculateMacroPercentage(
+                                        widget.currentFat,
+                                        widget.currentProtein,
+                                        widget.currentCarbs),
                                     theme.colorScheme.tertiary,
-                                    0.30,
+                                    _calculateMacroProgress(
+                                        widget.currentFat,
+                                        widget.currentProtein,
+                                        widget.currentCarbs),
                                   ),
                                 ),
                               ],
@@ -365,6 +389,18 @@ class _DailyCalorieCardWidgetState extends State<DailyCalorieCardWidget>
         ),
       ),
     );
+  }
+
+  String _calculateMacroPercentage(double macro, double other1, double other2) {
+    final total = macro + other1 + other2;
+    if (total == 0) return '0%';
+    return '${((macro / total) * 100).toInt()}%';
+  }
+
+  double _calculateMacroProgress(double macro, double other1, double other2) {
+    final total = macro + other1 + other2;
+    if (total == 0) return 0.0;
+    return (macro / total).clamp(0.0, 1.0);
   }
 
   Widget _buildMacroItem(

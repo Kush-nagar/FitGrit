@@ -5,6 +5,7 @@ import '../presentation/user_profile_screen/user_profile_screen.dart';
 import '../presentation/camera_scan_screen/camera_scan_screen.dart';
 import '../presentation/home_dashboard_screen/home_dashboard_screen.dart';
 import '../presentation/recognition_results_screen/recognition_results_screen.dart';
+import '../presentation/food_logging_screen/food_logging_screen.dart';
 
 class AppRoutes {
   // TODO: Add your routes here
@@ -15,6 +16,7 @@ class AppRoutes {
   static const String cameraScan = '/camera-scan-screen';
   static const String homeDashboard = '/home-dashboard-screen';
   static const String recognitionResults = '/recognition-results-screen';
+  static const String foodLogging = '/food-logging-screen';
 
   static Map<String, WidgetBuilder> routes = {
     initial: (context) => const HomeDashboardScreen(),
@@ -24,6 +26,7 @@ class AppRoutes {
     cameraScan: (context) => const CameraScanScreen(),
     homeDashboard: (context) => const HomeDashboardScreen(),
     recognitionResults: (context) => const RecognitionResultsScreen(),
+    foodLogging: (context) => const FoodLoggingScreen(),
     // TODO: Add your other routes here
   };
 }

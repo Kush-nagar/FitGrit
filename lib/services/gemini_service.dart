@@ -199,6 +199,147 @@ Return nothing else.
     return [];
   }
 
+  /// Get nutrition information for food items from an image
+  Future<Map<String, dynamic>> getNutritionInfo({
+    required String imagePath,
+    required List<String> ingredients,
+  }) async {
+    final file = File(imagePath);
+    if (!await file.exists()) {
+      throw Exception('Image not found: $imagePath');
+    }
+
+    // Read and resize if necessary
+    final bytes = await file.readAsBytes();
+    final safeBytes = _resizeIfNeeded(bytes, maxDimension);
+    final mimeType = _mimeTypeFromPath(imagePath);
+    final base64Data = base64Encode(safeBytes);
+
+    final prompt = '''
+You are a nutrition analysis assistant. Analyze the food in the image and the provided ingredients list.
+YOU MUST ONLY OUTPUT a JSON object (no markdown, no text outside JSON).
+
+The object must have:
+- "foodName": string (main dish/food name)
+- "ingredients": array of strings (detected ingredients)
+- "calories": number (estimated total calories)
+- "protein": number (grams)
+- "carbs": number (grams, also known as carbohydrates)
+- "fat": number (grams)
+- "fiber": number (grams)
+- "sugar": number (grams)
+- "sodium": number (milligrams)
+- "servingSize": string (e.g., "1 serving", "200g", "1 cup")
+- "additionalInfo": object (optional vitamins, minerals, health notes)
+
+Provided ingredients: ${jsonEncode(ingredients)}
+
+Example output:
+{
+  "foodName": "Grilled Chicken Salad",
+  "ingredients": ["Chicken breast", "Lettuce", "Tomatoes", "Cucumber", "Olive oil"],
+  "calories": 320,
+  "protein": 35,
+  "carbs": 15,
+  "fat": 12,
+  "fiber": 5,
+  "sugar": 6,
+  "sodium": 450,
+  "servingSize": "1 serving (250g)",
+  "additionalInfo": {
+    "vitaminC": "25% DV",
+    "iron": "15% DV",
+    "healthNote": "High in protein, low in carbs"
+  }
+}
+
+Return nothing else than the JSON object.
+''';
+
+    final body = {
+      "contents": [
+        {
+          "parts": [
+            {
+              "inline_data": {"mime_type": mimeType, "data": base64Data},
+            },
+            {"text": prompt},
+          ],
+        },
+      ],
+    };
+
+    final uri = Uri.parse(
+      'https://generativelanguage.googleapis.com/v1beta/models/$model:generateContent',
+    );
+
+    final headers = {
+      'Content-Type': 'application/json',
+      'x-goog-api-key': apiKey,
+    };
+
+    final resp = await http.post(uri, headers: headers, body: jsonEncode(body));
+
+    if (resp.statusCode != 200) {
+      String errorMessage = 'Gemini API error ${resp.statusCode}';
+      try {
+        final errorData = jsonDecode(resp.body);
+        if (errorData['error'] != null &&
+            errorData['error']['message'] != null) {
+          errorMessage = errorData['error']['message'];
+
+          if (resp.statusCode == 403) {
+            errorMessage =
+                'API access denied. Please enable the Generative Language API in Google Cloud Console.';
+          } else if (resp.statusCode == 429) {
+            errorMessage = 'API quota exceeded. Please try again later.';
+          } else if (resp.statusCode == 401) {
+            errorMessage = 'Invalid API key. Please check your Gemini API key.';
+          }
+        }
+      } catch (_) {}
+      throw Exception(errorMessage);
+    }
+
+    final decoded = jsonDecode(resp.body) as Map<String, dynamic>;
+    String modelText = _extractText(decoded);
+
+    if (modelText.isEmpty) {
+      throw Exception('No text returned by Gemini: ${resp.body}');
+    }
+
+    // Parse JSON strictly
+    try {
+      final parsed = jsonDecode(modelText);
+      if (parsed is Map) {
+        return Map<String, dynamic>.from(parsed);
+      }
+    } catch (_) {
+      // fallback: try regex extract
+      final objectMatch = RegExp(
+        r'(\{.*\})',
+        dotAll: true,
+      ).firstMatch(modelText);
+      if (objectMatch != null) {
+        return jsonDecode(objectMatch.group(1)!) as Map<String, dynamic>;
+      }
+    }
+
+    // If still failing, return basic structure
+    return {
+      "foodName": ingredients.isNotEmpty ? ingredients.join(", ") : "Unknown",
+      "ingredients": ingredients,
+      "calories": 0,
+      "protein": 0,
+      "carbs": 0,
+      "fat": 0,
+      "fiber": 0,
+      "sugar": 0,
+      "sodium": 0,
+      "servingSize": "1 serving",
+    };
+  }
+
   Future<List<Map<String, dynamic>>> generateRecipesFromIngredients(
     List<String> ingredients, {
     int maxRecipes = 8,

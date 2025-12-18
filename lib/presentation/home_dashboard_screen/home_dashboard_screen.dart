@@ -4,6 +4,8 @@ import 'package:intl/intl.dart';
 import 'package:sizer/sizer.dart';
 
 import '../../core/app_export.dart';
+import '../../services/nutrition_storage_service.dart';
+import '../../services/water_intake_service.dart';
 import '../../widgets/custom_app_bar.dart';
 import '../../widgets/custom_bottom_bar.dart';
 import './widgets/daily_calorie_card_widget.dart';
@@ -25,10 +27,16 @@ class HomeDashboardScreen extends StatefulWidget {
 class _HomeDashboardScreenState extends State<HomeDashboardScreen>
     with SingleTickerProviderStateMixin {
   DateTime _selectedDate = DateTime.now();
-  int _currentCalories = 1450;
-  final int _targetCalories = 2000;
-  int _currentWaterGlasses = 5;
-  final int _targetWaterGlasses = 8;
+  int _currentCalories = 0;
+  int _targetCalories = 2000;
+  double _currentProtein = 0;
+  double _currentCarbs = 0;
+  double _currentFat = 0;
+  int _currentWaterGlasses = 0;
+  int _targetWaterGlasses = 8;
+
+  final NutritionStorageService _nutritionService = NutritionStorageService();
+  final WaterIntakeService _waterService = WaterIntakeService();
 
   late AnimationController _animationController;
   late Animation<double> _fadeAnimation;
@@ -60,6 +68,32 @@ class _HomeDashboardScreenState extends State<HomeDashboardScreen>
     );
 
     _animationController.forward();
+    _loadDailyData();
+  }
+
+  /// Load daily nutrition and water data from storage
+  Future<void> _loadDailyData() async {
+    try {
+      // Load nutrition data
+      final totals = await _nutritionService.getTodaysTotals();
+      final goals = await _nutritionService.getDailyGoal();
+
+      // Load water data
+      final waterIntake = await _waterService.getWaterIntake();
+      final waterTarget = await _waterService.getTargetGlasses();
+
+      setState(() {
+        _currentCalories = totals['calories']?.toInt() ?? 0;
+        _targetCalories = goals['calories']?.toInt() ?? 2000;
+        _currentProtein = totals['protein'] ?? 0;
+        _currentCarbs = totals['carbs'] ?? 0;
+        _currentFat = totals['fat'] ?? 0;
+        _currentWaterGlasses = waterIntake;
+        _targetWaterGlasses = waterTarget;
+      });
+    } catch (e) {
+      debugPrint('Error loading daily data: $e');
+    }
   }
 
   @override
@@ -121,11 +155,15 @@ class _HomeDashboardScreenState extends State<HomeDashboardScreen>
     },
   ];
 
-  void _handleAddWater() {
+  Future<void> _handleAddWater() async {
     if (_currentWaterGlasses < _targetWaterGlasses) {
+      await _waterService.addWaterGlass();
+      final updatedIntake = await _waterService.getWaterIntake();
+
       setState(() {
-        _currentWaterGlasses++;
+        _currentWaterGlasses = updatedIntake;
       });
+
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(
@@ -554,6 +592,9 @@ class _HomeDashboardScreenState extends State<HomeDashboardScreen>
                     child: DailyCalorieCardWidget(
                       currentCalories: _currentCalories,
                       targetCalories: _targetCalories,
+                      currentProtein: _currentProtein,
+                      currentCarbs: _currentCarbs,
+                      currentFat: _currentFat,
                       onTap: () => Navigator.pushNamed(
                           context, '/food-log-history-screen'),
                     ),

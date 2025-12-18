@@ -287,13 +287,19 @@ class _RecognitionResultsScreenState extends State<RecognitionResultsScreen> {
   void _saveToInventory() {
     if (_recognizedIngredients.isEmpty) return;
 
-    // TODO: Navigate to inventory screen when implemented
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(
-            'Saved ${_recognizedIngredients.length} ingredients to inventory'),
-        behavior: SnackBarBehavior.floating,
-      ),
+    // Extract ingredient names
+    final ingredientNames = _recognizedIngredients
+        .map((ingredient) => ingredient['name'] as String)
+        .toList();
+
+    // Navigate to food logging screen with image and ingredients
+    Navigator.pushNamed(
+      context,
+      '/food-logging-screen',
+      arguments: {
+        'imagePath': _capturedImagePath,
+        'ingredients': ingredientNames,
+      },
     );
   }
 
@@ -612,7 +618,10 @@ class _RecognitionResultsScreenState extends State<RecognitionResultsScreen> {
                         height: 6.5.h,
                         decoration: BoxDecoration(
                           gradient: const LinearGradient(
-                            colors: [Color.fromARGB(255, 255, 145, 0), Color.fromARGB(255, 255, 145, 0)],
+                            colors: [
+                              Color.fromARGB(255, 255, 145, 0),
+                              Color.fromARGB(255, 255, 145, 0)
+                            ],
                             begin: Alignment.topLeft,
                             end: Alignment.bottomRight,
                           ),
