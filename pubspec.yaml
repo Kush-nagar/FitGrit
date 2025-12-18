@@ -17,6 +17,11 @@ dependencies:
   google_fonts: ^6.1.0       # Required for typography (replaces local fonts)
   shared_preferences: ^2.2.2 # Required for local data storage
   web: ^1.1.1
+
+  # Firebase dependencies - CRITICAL: Required for Firebase integration - DO NOT REMOVE
+  firebase_core: ^4.3.0
+  firebase_analytics: ^12.1.0
+  cloud_firestore: ^6.1.1
   
   # Feature dependencies - safe to modify
   cached_network_image: ^3.3.1

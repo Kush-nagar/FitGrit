@@ -4,8 +4,7 @@ import 'package:intl/intl.dart';
 import 'package:sizer/sizer.dart';
 
 import '../../core/app_export.dart';
-import '../../services/nutrition_storage_service.dart';
-import '../../services/water_intake_service.dart';
+import '../../services/firebase_nutrition_service.dart';
 import '../../widgets/custom_app_bar.dart';
 import '../../widgets/custom_bottom_bar.dart';
 import './widgets/daily_calorie_card_widget.dart';
@@ -34,9 +33,10 @@ class _HomeDashboardScreenState extends State<HomeDashboardScreen>
   double _currentFat = 0;
   int _currentWaterGlasses = 0;
   int _targetWaterGlasses = 8;
+  List<Map<String, dynamic>> _loggedFoods = [];
+  bool _isLoading = true;
 
-  final NutritionStorageService _nutritionService = NutritionStorageService();
-  final WaterIntakeService _waterService = WaterIntakeService();
+  final FirebaseNutritionService _firebaseService = FirebaseNutritionService();
 
   late AnimationController _animationController;
   late Animation<double> _fadeAnimation;
@@ -68,32 +68,291 @@ class _HomeDashboardScreenState extends State<HomeDashboardScreen>
     );
 
     _animationController.forward();
-    _loadDailyData();
   }
 
-  /// Load daily nutrition and water data from storage
-  Future<void> _loadDailyData() async {
-    try {
-      // Load nutrition data
-      final totals = await _nutritionService.getTodaysTotals();
-      final goals = await _nutritionService.getDailyGoal();
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    // Check if we should refresh data (e.g., after logging food)
+    final args =
+        ModalRoute.of(context)?.settings.arguments as Map<String, dynamic>?;
+    if (args != null && args['shouldRefresh'] == true) {
+      _loadDailyData();
+    } else if (_isLoading) {
+      // First load
+      _loadDailyData();
+    }
+  }
 
-      // Load water data
-      final waterIntake = await _waterService.getWaterIntake();
-      final waterTarget = await _waterService.getTargetGlasses();
+  /// Load daily nutrition and water data from Firebase for selected date
+  Future<void> _loadDailyData() async {
+    setState(() {
+      _isLoading = true;
+    });
+
+    try {
+      // Load nutrition data for selected date from Firebase
+      final totals = await _firebaseService.getDailyTotals(date: _selectedDate);
+      final goals = await _firebaseService.getDailyGoals();
+      final foods = await _firebaseService.getLoggedFoods(date: _selectedDate);
 
       setState(() {
         _currentCalories = totals['calories']?.toInt() ?? 0;
-        _targetCalories = goals['calories']?.toInt() ?? 2000;
+        _targetCalories = goals['targetCalories']?.toInt() ?? 2000;
         _currentProtein = totals['protein'] ?? 0;
         _currentCarbs = totals['carbs'] ?? 0;
         _currentFat = totals['fat'] ?? 0;
-        _currentWaterGlasses = waterIntake;
-        _targetWaterGlasses = waterTarget;
+        _currentWaterGlasses = totals['waterGlasses'] ?? 0;
+        _targetWaterGlasses = goals['targetWaterGlasses'] ?? 8;
+        _loggedFoods = foods;
+        _isLoading = false;
       });
     } catch (e) {
       debugPrint('Error loading daily data: $e');
+      setState(() {
+        _isLoading = false;
+      });
+
+      if (mounted) {
+        // Check if it's a Firestore setup issue
+        final errorMessage = e.toString();
+        String userFriendlyMessage = 'Error loading data';
+        String? actionLabel;
+        VoidCallback? action;
+
+        if (errorMessage.contains('NOT_FOUND') ||
+            errorMessage.contains('does not exist')) {
+          userFriendlyMessage =
+              '⚠️ Firestore database not set up. Please create it in Firebase Console.';
+          actionLabel = 'Instructions';
+          action = () => _showFirestoreSetupDialog();
+        } else if (errorMessage.contains('unavailable') ||
+            errorMessage.contains('UNAVAILABLE')) {
+          userFriendlyMessage =
+              '📡 Firestore is unavailable. Check your internet connection and Firebase setup.';
+          actionLabel = 'Retry';
+          action = () => _loadDailyData();
+        } else if (errorMessage.contains('permission-denied') ||
+            errorMessage.contains('PERMISSION_DENIED')) {
+          userFriendlyMessage =
+              '🔒 Permission denied. Please update Firestore security rules.';
+          actionLabel = 'Show Rules';
+          action = () => _showSecurityRulesDialog();
+        } else {
+          userFriendlyMessage = 'Error: ${e.toString().substring(0, 100)}...';
+        }
+
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(userFriendlyMessage),
+            behavior: SnackBarBehavior.floating,
+            duration: const Duration(seconds: 6),
+            action: action != null && actionLabel != null
+                ? SnackBarAction(
+                    label: actionLabel,
+                    onPressed: action,
+                  )
+                : null,
+          ),
+        );
+      }
     }
+  }
+
+  void _showFirestoreSetupDialog() {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Row(
+          children: [
+            Icon(
+              Icons.cloud_off,
+              color: Theme.of(context).colorScheme.error,
+            ),
+            SizedBox(width: 2.w),
+            const Text('Firestore Setup Required'),
+          ],
+        ),
+        content: SingleChildScrollView(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Text(
+                'Your Firebase Firestore database needs to be set up:',
+                style: TextStyle(fontWeight: FontWeight.bold),
+              ),
+              SizedBox(height: 2.h),
+              const Text('1. Go to Firebase Console'),
+              const Text('2. Select your project (presapp-97031)'),
+              const Text('3. Go to "Build" → "Firestore Database"'),
+              const Text('4. Click "Create Database"'),
+              const Text('5. Choose "Test mode" for now'),
+              const Text('6. Select your region'),
+              const Text('7. Wait for initialization'),
+              SizedBox(height: 2.h),
+              Container(
+                padding: EdgeInsets.all(2.w),
+                decoration: BoxDecoration(
+                  color: Theme.of(context)
+                      .colorScheme
+                      .surfaceContainerHighest
+                      .withValues(alpha: 0.5),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Text(
+                  'Quick link:\nhttps://console.firebase.google.com/project/presapp-97031/firestore',
+                  style: TextStyle(
+                    fontSize: 11,
+                    fontFamily: 'monospace',
+                    color: Theme.of(context).colorScheme.onSurfaceVariant,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Close'),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              Navigator.pop(context);
+              _loadDailyData();
+            },
+            child: const Text('Retry'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showSecurityRulesDialog() {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Row(
+          children: [
+            Icon(
+              Icons.security,
+              color: Theme.of(context).colorScheme.primary,
+            ),
+            SizedBox(width: 2.w),
+            const Text('Update Security Rules'),
+          ],
+        ),
+        content: SingleChildScrollView(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Text(
+                'Your Firestore security rules need to be updated:',
+                style: TextStyle(fontWeight: FontWeight.bold),
+              ),
+              SizedBox(height: 2.h),
+              const Text('1. Go to Firebase Console'),
+              const Text('2. Select "Firestore Database" → "Rules" tab'),
+              const Text('3. Replace the rules with the code below'),
+              const Text('4. Click "Publish"'),
+              SizedBox(height: 2.h),
+              const Text(
+                'Test Mode Rules (allows all read/write for 30 days):',
+                style: TextStyle(
+                  fontWeight: FontWeight.w600,
+                  fontSize: 12,
+                ),
+              ),
+              SizedBox(height: 1.h),
+              Container(
+                padding: EdgeInsets.all(2.w),
+                decoration: BoxDecoration(
+                  color: Theme.of(context)
+                      .colorScheme
+                      .surfaceContainerHighest
+                      .withValues(alpha: 0.8),
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(
+                    color: Theme.of(context).colorScheme.outline,
+                  ),
+                ),
+                child: Text(
+                  '''rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    match /{document=**} {
+      allow read, write: if
+        request.time < timestamp.date(2026, 1, 17);
+    }
+  }
+}''',
+                  style: TextStyle(
+                    fontSize: 10,
+                    fontFamily: 'monospace',
+                    color: Theme.of(context).colorScheme.onSurfaceVariant,
+                  ),
+                ),
+              ),
+              SizedBox(height: 2.h),
+              Container(
+                padding: EdgeInsets.all(2.w),
+                decoration: BoxDecoration(
+                  color: Theme.of(context)
+                      .colorScheme
+                      .surfaceContainerHighest
+                      .withValues(alpha: 0.5),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Text(
+                  'Console link:\nhttps://console.firebase.google.com/project/presapp-97031/firestore/rules',
+                  style: TextStyle(
+                    fontSize: 11,
+                    fontFamily: 'monospace',
+                    color: Theme.of(context).colorScheme.onSurfaceVariant,
+                  ),
+                ),
+              ),
+              SizedBox(height: 1.h),
+              Row(
+                children: [
+                  Icon(
+                    Icons.warning_amber_rounded,
+                    size: 16,
+                    color: Theme.of(context).colorScheme.tertiary,
+                  ),
+                  SizedBox(width: 1.w),
+                  Expanded(
+                    child: Text(
+                      'Note: These rules are for testing only. Add proper authentication before production.',
+                      style: TextStyle(
+                        fontSize: 11,
+                        color: Theme.of(context).colorScheme.tertiary,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Close'),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              Navigator.pop(context);
+              _loadDailyData();
+            },
+            child: const Text('Retry'),
+          ),
+        ],
+      ),
+    );
   }
 
   @override
@@ -102,81 +361,39 @@ class _HomeDashboardScreenState extends State<HomeDashboardScreen>
     super.dispose();
   }
 
-  final List<Map<String, dynamic>> _recentMeals = [
-    {
-      "id": 1,
-      "name": "Grilled Chicken Salad",
-      "image": "https://images.unsplash.com/photo-1662805523107-ce4d7486bb0b",
-      "semanticLabel":
-          "Fresh green salad with grilled chicken breast, cherry tomatoes, and mixed greens in a white bowl",
-      "calories": 350,
-      "mealType": "Lunch",
-      "time": "12:30 PM",
-    },
-    {
-      "id": 2,
-      "name": "Oatmeal with Berries",
-      "image": "https://images.unsplash.com/photo-1624581779023-1cedd60ed853",
-      "semanticLabel":
-          "Bowl of creamy oatmeal topped with fresh blueberries, strawberries, and sliced almonds",
-      "calories": 280,
-      "mealType": "Breakfast",
-      "time": "8:00 AM",
-    },
-    {
-      "id": 3,
-      "name": "Protein Smoothie",
-      "image": "https://images.unsplash.com/photo-1494314750614-5bf0ee7eb057",
-      "semanticLabel":
-          "Purple berry smoothie in a clear glass with a straw, topped with fresh berries",
-      "calories": 220,
-      "mealType": "Snack",
-      "time": "3:15 PM",
-    },
-    {
-      "id": 4,
-      "name": "Avocado Toast",
-      "image": "https://images.unsplash.com/photo-1725190595986-8a104475d742",
-      "semanticLabel":
-          "Whole grain toast topped with mashed avocado, cherry tomatoes, and sesame seeds on a white plate",
-      "calories": 320,
-      "mealType": "Breakfast",
-      "time": "7:45 AM",
-    },
-    {
-      "id": 5,
-      "name": "Greek Yogurt Parfait",
-      "image": "https://images.unsplash.com/photo-1691455653742-ea1aded33376",
-      "semanticLabel":
-          "Layered parfait with Greek yogurt, granola, and mixed berries in a clear glass",
-      "calories": 280,
-      "mealType": "Snack",
-      "time": "10:30 AM",
-    },
-  ];
-
   Future<void> _handleAddWater() async {
-    if (_currentWaterGlasses < _targetWaterGlasses) {
-      await _waterService.addWaterGlass();
-      final updatedIntake = await _waterService.getWaterIntake();
+    try {
+      await _firebaseService.addWaterGlass(date: _selectedDate);
 
-      setState(() {
-        _currentWaterGlasses = updatedIntake;
-      });
+      // Reload data to reflect changes
+      await _loadDailyData();
+
+      if (!mounted) return;
+
+      if (_currentWaterGlasses >= _targetWaterGlasses) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Daily water goal achieved! 🎉'),
+            duration: Duration(seconds: 2),
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+                'Water glass added! $_currentWaterGlasses/$_targetWaterGlasses'),
+            duration: const Duration(seconds: 2),
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+      }
+    } catch (e) {
+      if (!mounted) return;
 
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text(
-              'Water glass added! $_currentWaterGlasses/$_targetWaterGlasses'),
-          duration: const Duration(seconds: 2),
-          behavior: SnackBarBehavior.floating,
-        ),
-      );
-    } else {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Daily water goal achieved! 🎉'),
-          duration: Duration(seconds: 2),
+          content: Text('Error adding water: $e'),
           behavior: SnackBarBehavior.floating,
         ),
       );
@@ -210,31 +427,64 @@ class _HomeDashboardScreenState extends State<HomeDashboardScreen>
     );
   }
 
-  void _handleDeleteMeal(Map<String, dynamic> meal) {
+  Future<void> _handleDeleteMeal(Map<String, dynamic> meal) async {
+    // Find the index of the meal in logged foods
+    final index = _loggedFoods.indexWhere(
+        (m) => m['foodName'] == meal['foodName'] || m['name'] == meal['name']);
+
+    if (index == -1) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Meal not found'),
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+      return;
+    }
+
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
         title: const Text('Delete Meal'),
-        content: Text('Are you sure you want to delete ${meal['name']}?'),
+        content: Text(
+            'Are you sure you want to delete ${meal['name'] ?? meal['foodName']}?'),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),
             child: const Text('Cancel'),
           ),
           TextButton(
-            onPressed: () {
-              setState(() {
-                _recentMeals.removeWhere((m) => m['id'] == meal['id']);
-                _currentCalories -= (meal['calories'] as int);
-              });
+            onPressed: () async {
               Navigator.pop(context);
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(
-                  content: Text('Meal deleted successfully'),
-                  duration: Duration(seconds: 2),
-                  behavior: SnackBarBehavior.floating,
-                ),
-              );
+
+              try {
+                await _firebaseService.deleteFood(
+                  index: index,
+                  date: _selectedDate,
+                );
+
+                // Reload data
+                await _loadDailyData();
+
+                if (!mounted) return;
+
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(
+                    content: Text('Meal deleted successfully'),
+                    duration: Duration(seconds: 2),
+                    behavior: SnackBarBehavior.floating,
+                  ),
+                );
+              } catch (e) {
+                if (!mounted) return;
+
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    content: Text('Error deleting meal: $e'),
+                    behavior: SnackBarBehavior.floating,
+                  ),
+                );
+              }
             },
             child: Text(
               'Delete',
@@ -447,11 +697,46 @@ class _HomeDashboardScreenState extends State<HomeDashboardScreen>
       initialDate: _selectedDate,
       firstDate: DateTime(2020),
       lastDate: DateTime.now(),
+      builder: (context, child) {
+        final theme = Theme.of(context);
+        return Theme(
+          data: theme.copyWith(
+            colorScheme: theme.colorScheme.copyWith(
+              primary: theme.colorScheme.primary,
+              onPrimary: theme.colorScheme.onPrimary,
+            ),
+          ),
+          child: child!,
+        );
+      },
     );
+
     if (picked != null && picked != _selectedDate) {
       setState(() {
         _selectedDate = picked;
       });
+
+      // Reload data for the new date
+      await _loadDailyData();
+    }
+  }
+
+  /// Navigate to previous day
+  Future<void> _goToPreviousDay() async {
+    setState(() {
+      _selectedDate = _selectedDate.subtract(const Duration(days: 1));
+    });
+    await _loadDailyData();
+  }
+
+  /// Navigate to next day
+  Future<void> _goToNextDay() async {
+    final tomorrow = _selectedDate.add(const Duration(days: 1));
+    if (tomorrow.isBefore(DateTime.now().add(const Duration(days: 1)))) {
+      setState(() {
+        _selectedDate = tomorrow;
+      });
+      await _loadDailyData();
     }
   }
 
@@ -519,7 +804,7 @@ class _HomeDashboardScreenState extends State<HomeDashboardScreen>
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  // Modern date header with gradient
+                  // Modern date header with navigation
                   Container(
                     margin:
                         EdgeInsets.symmetric(horizontal: 4.w, vertical: 2.h),
@@ -542,6 +827,19 @@ class _HomeDashboardScreenState extends State<HomeDashboardScreen>
                     ),
                     child: Row(
                       children: [
+                        // Previous day button
+                        IconButton(
+                          onPressed: _goToPreviousDay,
+                          icon: Icon(
+                            Icons.chevron_left_rounded,
+                            color: theme.colorScheme.primary,
+                          ),
+                          tooltip: 'Previous day',
+                          padding: EdgeInsets.zero,
+                          constraints: const BoxConstraints(),
+                        ),
+                        SizedBox(width: 2.w),
+
                         Container(
                           padding: EdgeInsets.all(2.w),
                           decoration: BoxDecoration(
@@ -577,10 +875,27 @@ class _HomeDashboardScreenState extends State<HomeDashboardScreen>
                             ],
                           ),
                         ),
-                        Icon(
-                          Icons.chevron_right_rounded,
-                          color:
-                              theme.colorScheme.primary.withValues(alpha: 0.6),
+
+                        // Next day button (disabled if today)
+                        IconButton(
+                          onPressed: _selectedDate.day == DateTime.now().day &&
+                                  _selectedDate.month == DateTime.now().month &&
+                                  _selectedDate.year == DateTime.now().year
+                              ? null
+                              : _goToNextDay,
+                          icon: Icon(
+                            Icons.chevron_right_rounded,
+                            color: _selectedDate.day == DateTime.now().day &&
+                                    _selectedDate.month ==
+                                        DateTime.now().month &&
+                                    _selectedDate.year == DateTime.now().year
+                                ? theme.colorScheme.onSurfaceVariant
+                                    .withValues(alpha: 0.3)
+                                : theme.colorScheme.primary,
+                          ),
+                          tooltip: 'Next day',
+                          padding: EdgeInsets.zero,
+                          constraints: const BoxConstraints(),
                         ),
                       ],
                     ),
@@ -615,12 +930,46 @@ class _HomeDashboardScreenState extends State<HomeDashboardScreen>
 
                   _buildAnimatedCard(
                     delay: 200,
-                    child: RecentMealsSectionWidget(
-                      meals: _recentMeals,
-                      onMealTap: _handleMealTap,
-                      onEditMeal: _handleEditMeal,
-                      onDeleteMeal: _handleDeleteMeal,
-                    ),
+                    child: _isLoading
+                        ? Center(
+                            child: Padding(
+                              padding: EdgeInsets.all(4.h),
+                              child: CircularProgressIndicator(
+                                color: theme.colorScheme.primary,
+                              ),
+                            ),
+                          )
+                        : RecentMealsSectionWidget(
+                            meals: _loggedFoods.map((food) {
+                              return {
+                                'id': food['id'] ??
+                                    DateTime.now().millisecondsSinceEpoch,
+                                'name': food['foodName'] ??
+                                    food['name'] ??
+                                    'Unknown',
+                                'foodName': food['foodName'] ??
+                                    food['name'] ??
+                                    'Unknown',
+                                'calories': (food['calories'] ?? 0).toInt(),
+                                'protein': (food['protein'] ?? 0).toDouble(),
+                                'carbs': (food['carbs'] ?? 0).toDouble(),
+                                'fat': (food['fat'] ?? 0).toDouble(),
+                                'mealType': 'Logged',
+                                'time': food['timestamp'] != null
+                                    ? DateFormat('h:mm a').format(
+                                        DateTime.parse(food['timestamp']),
+                                      )
+                                    : 'N/A',
+                                'image':
+                                    'https://images.unsplash.com/photo-1546069901-ba9599a7e63c',
+                                'semanticLabel':
+                                    'Food item: ${food['foodName'] ?? food['name']}',
+                              };
+                            }).toList(),
+                            onMealTap: _handleMealTap,
+                            onEditMeal: _handleEditMeal,
+                            onDeleteMeal: _handleDeleteMeal,
+                          ),
                   ),
 
                   SizedBox(height: 1.h),

@@ -44,9 +44,11 @@ class NutritionInfo {
   }
 
   Map<String, dynamic> toJson() {
-    return {
+    final Map<String, dynamic> data = {
       'foodName': foodName,
-      'ingredients': ingredients,
+      'ingredients': ingredients
+          .where((i) => i.isNotEmpty)
+          .toList(), // Filter out empty ingredients
       'calories': calories,
       'protein': protein,
       'carbs': carbs,
@@ -55,9 +57,15 @@ class NutritionInfo {
       'sugar': sugar,
       'sodium': sodium,
       'servingSize': servingSize,
-      'additionalInfo': additionalInfo,
       'timestamp': DateTime.now().toIso8601String(),
     };
+
+    // Only include additionalInfo if it's not null and not empty
+    if (additionalInfo != null && additionalInfo!.isNotEmpty) {
+      data['additionalInfo'] = additionalInfo;
+    }
+
+    return data;
   }
 
   // Calculate total macros percentage

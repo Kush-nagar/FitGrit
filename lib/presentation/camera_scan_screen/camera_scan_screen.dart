@@ -537,11 +537,16 @@ class _CameraScanScreenState extends State<CameraScanScreen>
 
           // Confidence Overlay
           if (_showConfidenceOverlay && _recognizedFood != null)
-            FadeTransition(
-              opacity: _overlayFadeAnimation,
-              child: ConfidenceOverlayWidget(
-                foodName: _recognizedFood!,
-                confidence: _confidenceScore!,
+            Positioned(
+              top: 120,
+              left: 24,
+              right: 24,
+              child: FadeTransition(
+                opacity: _overlayFadeAnimation,
+                child: ConfidenceOverlayWidget(
+                  foodName: _recognizedFood!,
+                  confidence: _confidenceScore!,
+                ),
               ),
             ),
 
