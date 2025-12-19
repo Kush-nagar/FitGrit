@@ -61,7 +61,8 @@ class RepCounter {
 
     // Debug logging every 10 frames
     if (_repTimeline.length % 10 == 0) {
-      print('Signal: ${signal.toStringAsFixed(3)}, Smoothed: ${smoothedSignal.toStringAsFixed(3)}, State: $_currentState, Reps: $_repCount');
+      print(
+          'Signal: ${signal.toStringAsFixed(3)}, Smoothed: ${smoothedSignal.toStringAsFixed(3)}, State: $_currentState, Reps: $_repCount');
     }
 
     // Debounce transitions
@@ -78,13 +79,15 @@ class RepCounter {
     if (_currentState == RepState.up && smoothedSignal < downThreshold) {
       _currentState = RepState.down;
       _lastTransitionTime = timestampMillis;
-      print('✓ Transition to DOWN at ${timestampMillis}ms, signal: ${smoothedSignal.toStringAsFixed(3)}');
+      print(
+          '✓ Transition to DOWN at ${timestampMillis}ms, signal: ${smoothedSignal.toStringAsFixed(3)}');
     } else if (_currentState == RepState.down && smoothedSignal > upThreshold) {
       _currentState = RepState.up;
       _repCount++;
       _lastTransitionTime = timestampMillis;
       repCompleted = true;
-      print('✓ REP COMPLETED! Count: $_repCount at ${timestampMillis}ms, signal: ${smoothedSignal.toStringAsFixed(3)}');
+      print(
+          '✓ REP COMPLETED! Count: $_repCount at ${timestampMillis}ms, signal: ${smoothedSignal.toStringAsFixed(3)}');
     }
 
     // Record timeline
@@ -117,8 +120,10 @@ class RepCounter {
     final rightWrist = _findKeypoint(keypoints, KeypointNames.rightWrist);
 
     // Check if we have at least one side visible
-    final hasLeft = leftShoulder != null && leftElbow != null && leftWrist != null;
-    final hasRight = rightShoulder != null && rightElbow != null && rightWrist != null;
+    final hasLeft =
+        leftShoulder != null && leftElbow != null && leftWrist != null;
+    final hasRight =
+        rightShoulder != null && rightElbow != null && rightWrist != null;
 
     if (!hasLeft && !hasRight) {
       return null;
@@ -128,7 +133,8 @@ class RepCounter {
     double avgAngle;
     if (hasLeft && hasRight) {
       final leftAngle = _calculateAngle(leftShoulder!, leftElbow!, leftWrist!);
-      final rightAngle = _calculateAngle(rightShoulder!, rightElbow!, rightWrist!);
+      final rightAngle =
+          _calculateAngle(rightShoulder!, rightElbow!, rightWrist!);
       avgAngle = (leftAngle + rightAngle) / 2;
     } else if (hasLeft) {
       avgAngle = _calculateAngle(leftShoulder!, leftElbow!, leftWrist!);
@@ -178,7 +184,8 @@ class RepCounter {
 
     // Check if we have at least one side visible
     final hasLeft = leftShoulder != null && leftHip != null && leftKnee != null;
-    final hasRight = rightShoulder != null && rightHip != null && rightKnee != null;
+    final hasRight =
+        rightShoulder != null && rightHip != null && rightKnee != null;
 
     if (!hasLeft && !hasRight) {
       return null;
