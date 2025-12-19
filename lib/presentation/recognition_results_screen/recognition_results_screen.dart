@@ -242,45 +242,14 @@ class _RecognitionResultsScreenState extends State<RecognitionResultsScreen> {
           .map((ingredient) => ingredient['name'] as String)
           .toList();
 
-      // TODO: Navigate to recipe screen when implemented
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-              'Finding recipes with ${ingredientNames.length} ingredients...'),
-          behavior: SnackBarBehavior.floating,
-        ),
+      // Navigate to recipes screen with ingredients
+      Navigator.pushNamed(
+        context,
+        '/recipes-screen',
+        arguments: {
+          'ingredients': ingredientNames,
+        },
       );
-    }
-  }
-
-  void _addMoreIngredients() async {
-    final result = await Navigator.pushNamed(
-      context,
-      '/camera-scan-screen',
-      arguments: {
-        'existingIngredients': _recognizedIngredients,
-      },
-    );
-
-    if (result != null && result is Map<String, dynamic>) {
-      final newIngredients =
-          result['detectedIngredients'] as List<Map<String, dynamic>>? ?? [];
-
-      setState(() {
-        _recognizedIngredients.addAll(newIngredients);
-
-        // Deduplicate by name
-        final dedup = <String, Map<String, dynamic>>{};
-        for (var it in _recognizedIngredients) {
-          final key = (it['name'] as String).toLowerCase();
-          if (!dedup.containsKey(key) ||
-              (it['confidence'] as double) >
-                  (dedup[key]!['confidence'] as double)) {
-            dedup[key] = it;
-          }
-        }
-        _recognizedIngredients = dedup.values.toList();
-      });
     }
   }
 
@@ -300,22 +269,6 @@ class _RecognitionResultsScreenState extends State<RecognitionResultsScreen> {
         'imagePath': _capturedImagePath,
         'ingredients': ingredientNames,
       },
-    );
-  }
-
-  void _shareIngredients() {
-    if (_recognizedIngredients.isEmpty) return;
-
-    final ingredientNames = _recognizedIngredients
-        .map((ingredient) => ingredient['name'] as String)
-        .join(', ');
-
-    // TODO: Implement share functionality
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text('Sharing: $ingredientNames'),
-        behavior: SnackBarBehavior.floating,
-      ),
     );
   }
 

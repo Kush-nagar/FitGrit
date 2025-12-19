@@ -378,31 +378,50 @@ class _FitnessScreenState extends State<FitnessScreen> {
       backgroundColor: theme.colorScheme.surface,
       appBar: CustomAppBar(
         variant: CustomAppBarVariant.standard,
-        title: 'Fitness',
+        title: 'Fitness Tracker',
         centerTitle: false,
         actions: [
-          DropdownButton<ExerciseType>(
-            value: _selectedExercise,
-            dropdownColor: theme.colorScheme.surface,
-            items: ExerciseType.values.map((type) {
-              return DropdownMenuItem(
-                value: type,
-                child: Text(
-                  type.toString().split('.').last.toUpperCase(),
-                  style: TextStyle(color: theme.colorScheme.onSurface),
-                ),
-              );
-            }).toList(),
-            onChanged: (value) {
-              if (value != null) {
-                setState(() {
-                  _selectedExercise = value;
-                  _repCounter = RepCounter(exerciseType: value);
-                });
-              }
-            },
+          // Modern exercise selector with card design
+          Container(
+            margin: const EdgeInsets.only(right: 12, top: 8, bottom: 8),
+            padding: const EdgeInsets.symmetric(horizontal: 12),
+            decoration: BoxDecoration(
+              color: theme.colorScheme.primaryContainer.withValues(alpha: 0.15),
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(
+                color: theme.colorScheme.primary.withValues(alpha: 0.3),
+                width: 1,
+              ),
+            ),
+            child: DropdownButton<ExerciseType>(
+              value: _selectedExercise,
+              dropdownColor: theme.colorScheme.surfaceContainerHighest,
+              underline: const SizedBox(),
+              icon: Icon(Icons.fitness_center,
+                  color: theme.colorScheme.primary, size: 18),
+              items: ExerciseType.values.map((type) {
+                return DropdownMenuItem(
+                  value: type,
+                  child: Text(
+                    type.toString().split('.').last.toUpperCase(),
+                    style: TextStyle(
+                      color: theme.colorScheme.onSurface,
+                      fontWeight: FontWeight.w600,
+                      fontSize: 13,
+                    ),
+                  ),
+                );
+              }).toList(),
+              onChanged: (value) {
+                if (value != null) {
+                  setState(() {
+                    _selectedExercise = value;
+                    _repCounter = RepCounter(exerciseType: value);
+                  });
+                }
+              },
+            ),
           ),
-          const SizedBox(width: 8),
         ],
       ),
       body: _buildBody(),
@@ -439,17 +458,61 @@ class _FitnessScreenState extends State<FitnessScreen> {
   Widget _buildCameraView() {
     if (!_cameraService.isInitialized) {
       return Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(
-              Icons.camera_alt,
-              size: 64,
-              color: Theme.of(context).colorScheme.primary,
+        child: Container(
+          margin: const EdgeInsets.all(24),
+          padding: const EdgeInsets.all(48),
+          decoration: BoxDecoration(
+            gradient: LinearGradient(
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+              colors: [
+                Theme.of(context).colorScheme.primary.withValues(alpha: 0.1),
+                Theme.of(context).colorScheme.tertiary.withValues(alpha: 0.05),
+              ],
             ),
-            const SizedBox(height: 16),
-            const Text('Tap "Start Camera" to begin'),
-          ],
+            borderRadius: BorderRadius.circular(24),
+            border: Border.all(
+              color:
+                  Theme.of(context).colorScheme.primary.withValues(alpha: 0.3),
+              width: 2,
+            ),
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                padding: const EdgeInsets.all(20),
+                decoration: BoxDecoration(
+                  color: Theme.of(context)
+                      .colorScheme
+                      .primary
+                      .withValues(alpha: 0.15),
+                  shape: BoxShape.circle,
+                ),
+                child: Icon(
+                  Icons.videocam,
+                  size: 64,
+                  color: Theme.of(context).colorScheme.primary,
+                ),
+              ),
+              const SizedBox(height: 24),
+              Text(
+                'Ready to Start',
+                style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+                      fontWeight: FontWeight.bold,
+                      color: Theme.of(context).colorScheme.onSurface,
+                    ),
+              ),
+              const SizedBox(height: 12),
+              Text(
+                'Tap "Start Camera" below to begin tracking',
+                style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                      color: Theme.of(context).colorScheme.onSurfaceVariant,
+                    ),
+                textAlign: TextAlign.center,
+              ),
+            ],
+          ),
         ),
       );
     }
@@ -457,7 +520,11 @@ class _FitnessScreenState extends State<FitnessScreen> {
     return Stack(
       children: [
         SizedBox.expand(
-          child: CameraPreview(_cameraService.controller!),
+          child: ClipRRect(
+            borderRadius:
+                const BorderRadius.vertical(bottom: Radius.circular(0)),
+            child: CameraPreview(_cameraService.controller!),
+          ),
         ),
         Positioned.fill(
           child: PoseOverlay(
@@ -466,22 +533,54 @@ class _FitnessScreenState extends State<FitnessScreen> {
             exerciseType: _selectedExercise.toString().split('.').last,
           ),
         ),
+        // Modern rep counter display
         Positioned(
-          top: 20,
-          left: 20,
+          top: 24,
+          left: 24,
+          right: 24,
           child: Container(
-            padding: const EdgeInsets.all(16),
+            padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
             decoration: BoxDecoration(
-              color: Colors.black54,
-              borderRadius: BorderRadius.circular(8),
-            ),
-            child: Text(
-              'Reps: ${_repCounter?.repCount ?? 0}',
-              style: const TextStyle(
-                color: Colors.white,
-                fontSize: 24,
-                fontWeight: FontWeight.bold,
+              gradient: LinearGradient(
+                colors: [
+                  Theme.of(context).colorScheme.primary.withValues(alpha: 0.95),
+                  Theme.of(context)
+                      .colorScheme
+                      .primaryContainer
+                      .withValues(alpha: 0.95),
+                ],
               ),
+              borderRadius: BorderRadius.circular(16),
+              boxShadow: [
+                BoxShadow(
+                  color: Theme.of(context)
+                      .colorScheme
+                      .shadow
+                      .withValues(alpha: 0.3),
+                  blurRadius: 12,
+                  offset: const Offset(0, 4),
+                ),
+              ],
+            ),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Icon(
+                  Icons.fitness_center,
+                  color: Theme.of(context).colorScheme.onPrimary,
+                  size: 28,
+                ),
+                const SizedBox(width: 12),
+                Text(
+                  'REPS: ${_repCounter?.repCount ?? 0}',
+                  style: TextStyle(
+                    color: Theme.of(context).colorScheme.onPrimary,
+                    fontSize: 32,
+                    fontWeight: FontWeight.bold,
+                    letterSpacing: 2,
+                  ),
+                ),
+              ],
             ),
           ),
         ),
@@ -492,17 +591,61 @@ class _FitnessScreenState extends State<FitnessScreen> {
   Widget _buildVideoView() {
     if (_videoController == null || !_videoController!.value.isInitialized) {
       return Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(
-              Icons.video_library,
-              size: 64,
-              color: Theme.of(context).colorScheme.primary,
+        child: Container(
+          margin: const EdgeInsets.all(24),
+          padding: const EdgeInsets.all(48),
+          decoration: BoxDecoration(
+            gradient: LinearGradient(
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+              colors: [
+                Theme.of(context).colorScheme.tertiary.withValues(alpha: 0.1),
+                Theme.of(context).colorScheme.secondary.withValues(alpha: 0.05),
+              ],
             ),
-            const SizedBox(height: 16),
-            const Text('Pick a video to analyze'),
-          ],
+            borderRadius: BorderRadius.circular(24),
+            border: Border.all(
+              color:
+                  Theme.of(context).colorScheme.tertiary.withValues(alpha: 0.3),
+              width: 2,
+            ),
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                padding: const EdgeInsets.all(20),
+                decoration: BoxDecoration(
+                  color: Theme.of(context)
+                      .colorScheme
+                      .tertiary
+                      .withValues(alpha: 0.15),
+                  shape: BoxShape.circle,
+                ),
+                child: Icon(
+                  Icons.video_library_rounded,
+                  size: 64,
+                  color: Theme.of(context).colorScheme.tertiary,
+                ),
+              ),
+              const SizedBox(height: 24),
+              Text(
+                'No Video Selected',
+                style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+                      fontWeight: FontWeight.bold,
+                      color: Theme.of(context).colorScheme.onSurface,
+                    ),
+              ),
+              const SizedBox(height: 12),
+              Text(
+                'Pick a video to analyze your workout',
+                style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                      color: Theme.of(context).colorScheme.onSurfaceVariant,
+                    ),
+                textAlign: TextAlign.center,
+              ),
+            ],
+          ),
         ),
       );
     }
@@ -512,7 +655,10 @@ class _FitnessScreenState extends State<FitnessScreen> {
         Center(
           child: AspectRatio(
             aspectRatio: _videoController!.value.aspectRatio,
-            child: VideoPlayer(_videoController!),
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(0),
+              child: VideoPlayer(_videoController!),
+            ),
           ),
         ),
         Positioned.fill(
@@ -527,12 +673,32 @@ class _FitnessScreenState extends State<FitnessScreen> {
             child: Container(
               color: Colors.transparent,
               child: Center(
-                child: Icon(
-                  _videoController!.value.isPlaying
-                      ? Icons.pause
-                      : Icons.play_arrow,
-                  size: 64,
-                  color: Colors.white70,
+                child: Container(
+                  padding: const EdgeInsets.all(20),
+                  decoration: BoxDecoration(
+                    color: Theme.of(context)
+                        .colorScheme
+                        .surface
+                        .withValues(alpha: 0.9),
+                    shape: BoxShape.circle,
+                    boxShadow: [
+                      BoxShadow(
+                        color: Theme.of(context)
+                            .colorScheme
+                            .shadow
+                            .withValues(alpha: 0.3),
+                        blurRadius: 16,
+                        spreadRadius: 4,
+                      ),
+                    ],
+                  ),
+                  child: Icon(
+                    _videoController!.value.isPlaying
+                        ? Icons.pause_rounded
+                        : Icons.play_arrow_rounded,
+                    size: 64,
+                    color: Theme.of(context).colorScheme.primary,
+                  ),
                 ),
               ),
             ),
@@ -540,21 +706,55 @@ class _FitnessScreenState extends State<FitnessScreen> {
         ),
         if (_videoFrameKeypoints.isNotEmpty)
           Positioned(
-            top: 20,
-            left: 20,
+            top: 24,
+            left: 24,
+            right: 24,
             child: Container(
-              padding: const EdgeInsets.all(16),
+              padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
               decoration: BoxDecoration(
-                color: Colors.black54,
-                borderRadius: BorderRadius.circular(8),
-              ),
-              child: Text(
-                'Reps: ${_repCounter?.repCount ?? 0}',
-                style: const TextStyle(
-                  color: Colors.white,
-                  fontSize: 24,
-                  fontWeight: FontWeight.bold,
+                gradient: LinearGradient(
+                  colors: [
+                    Theme.of(context)
+                        .colorScheme
+                        .tertiary
+                        .withValues(alpha: 0.95),
+                    Theme.of(context)
+                        .colorScheme
+                        .tertiaryContainer
+                        .withValues(alpha: 0.95),
+                  ],
                 ),
+                borderRadius: BorderRadius.circular(16),
+                boxShadow: [
+                  BoxShadow(
+                    color: Theme.of(context)
+                        .colorScheme
+                        .shadow
+                        .withValues(alpha: 0.3),
+                    blurRadius: 12,
+                    offset: const Offset(0, 4),
+                  ),
+                ],
+              ),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(
+                    Icons.analytics_rounded,
+                    color: Theme.of(context).colorScheme.onTertiary,
+                    size: 28,
+                  ),
+                  const SizedBox(width: 12),
+                  Text(
+                    'REPS: ${_repCounter?.repCount ?? 0}',
+                    style: TextStyle(
+                      color: Theme.of(context).colorScheme.onTertiary,
+                      fontSize: 32,
+                      fontWeight: FontWeight.bold,
+                      letterSpacing: 2,
+                    ),
+                  ),
+                ],
               ),
             ),
           ),
@@ -564,87 +764,339 @@ class _FitnessScreenState extends State<FitnessScreen> {
 
   Widget _buildProcessingView() {
     return Center(
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          const CircularProgressIndicator(),
-          const SizedBox(height: 20),
-          Text(
-            'Analyzing video...',
-            style: Theme.of(context).textTheme.titleLarge,
-          ),
-          const SizedBox(height: 10),
-          Text('${(_exportProgress * 100).toStringAsFixed(0)}%'),
-          const SizedBox(height: 20),
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 40),
-            child: LinearProgressIndicator(value: _exportProgress),
-          ),
-        ],
+      child: Container(
+        margin: const EdgeInsets.all(32),
+        padding: const EdgeInsets.all(32),
+        decoration: BoxDecoration(
+          color: Theme.of(context).colorScheme.surfaceContainerHighest,
+          borderRadius: BorderRadius.circular(24),
+          boxShadow: [
+            BoxShadow(
+              color:
+                  Theme.of(context).colorScheme.shadow.withValues(alpha: 0.15),
+              blurRadius: 20,
+              offset: const Offset(0, 8),
+            ),
+          ],
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              padding: const EdgeInsets.all(24),
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  colors: [
+                    Theme.of(context).colorScheme.primary,
+                    Theme.of(context).colorScheme.tertiary,
+                  ],
+                ),
+                shape: BoxShape.circle,
+              ),
+              child: CircularProgressIndicator(
+                strokeWidth: 6,
+                valueColor: AlwaysStoppedAnimation<Color>(
+                  Theme.of(context).colorScheme.onPrimary,
+                ),
+              ),
+            ),
+            const SizedBox(height: 32),
+            Text(
+              'Analyzing Video',
+              style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+                    fontWeight: FontWeight.bold,
+                    color: Theme.of(context).colorScheme.onSurface,
+                  ),
+            ),
+            const SizedBox(height: 16),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+              decoration: BoxDecoration(
+                color: Theme.of(context)
+                    .colorScheme
+                    .primary
+                    .withValues(alpha: 0.15),
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: Text(
+                '${(_exportProgress * 100).toStringAsFixed(0)}%',
+                style: TextStyle(
+                  fontSize: 28,
+                  fontWeight: FontWeight.bold,
+                  color: Theme.of(context).colorScheme.primary,
+                ),
+              ),
+            ),
+            const SizedBox(height: 24),
+            ClipRRect(
+              borderRadius: BorderRadius.circular(8),
+              child: SizedBox(
+                width: double.infinity,
+                height: 12,
+                child: LinearProgressIndicator(
+                  value: _exportProgress,
+                  backgroundColor:
+                      Theme.of(context).colorScheme.surfaceContainerHighest,
+                  valueColor: AlwaysStoppedAnimation<Color>(
+                    Theme.of(context).colorScheme.primary,
+                  ),
+                ),
+              ),
+            ),
+            const SizedBox(height: 16),
+            Text(
+              'Processing frames and detecting movements...',
+              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                    color: Theme.of(context).colorScheme.onSurfaceVariant,
+                  ),
+              textAlign: TextAlign.center,
+            ),
+          ],
+        ),
       ),
     );
   }
 
   Widget _buildExportingView() {
     return Center(
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          const CircularProgressIndicator(),
-          const SizedBox(height: 20),
-          Text(
-            'Exporting annotated video...',
-            style: Theme.of(context).textTheme.titleLarge,
-          ),
-          const SizedBox(height: 10),
-          Text('${(_exportProgress * 100).toStringAsFixed(0)}%'),
-          const SizedBox(height: 20),
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 40),
-            child: LinearProgressIndicator(value: _exportProgress),
-          ),
-        ],
+      child: Container(
+        margin: const EdgeInsets.all(32),
+        padding: const EdgeInsets.all(32),
+        decoration: BoxDecoration(
+          color: Theme.of(context).colorScheme.surfaceContainerHighest,
+          borderRadius: BorderRadius.circular(24),
+          boxShadow: [
+            BoxShadow(
+              color:
+                  Theme.of(context).colorScheme.shadow.withValues(alpha: 0.15),
+              blurRadius: 20,
+              offset: const Offset(0, 8),
+            ),
+          ],
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              padding: const EdgeInsets.all(24),
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  colors: [
+                    Theme.of(context).colorScheme.tertiary,
+                    Theme.of(context).colorScheme.secondary,
+                  ],
+                ),
+                shape: BoxShape.circle,
+              ),
+              child: CircularProgressIndicator(
+                strokeWidth: 6,
+                valueColor: AlwaysStoppedAnimation<Color>(
+                  Theme.of(context).colorScheme.onTertiary,
+                ),
+              ),
+            ),
+            const SizedBox(height: 32),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Icon(
+                  Icons.video_file_rounded,
+                  color: Theme.of(context).colorScheme.tertiary,
+                  size: 28,
+                ),
+                const SizedBox(width: 12),
+                Text(
+                  'Exporting Video',
+                  style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+                        fontWeight: FontWeight.bold,
+                        color: Theme.of(context).colorScheme.onSurface,
+                      ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 16),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+              decoration: BoxDecoration(
+                color: Theme.of(context)
+                    .colorScheme
+                    .tertiary
+                    .withValues(alpha: 0.15),
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: Text(
+                '${(_exportProgress * 100).toStringAsFixed(0)}%',
+                style: TextStyle(
+                  fontSize: 28,
+                  fontWeight: FontWeight.bold,
+                  color: Theme.of(context).colorScheme.tertiary,
+                ),
+              ),
+            ),
+            const SizedBox(height: 24),
+            ClipRRect(
+              borderRadius: BorderRadius.circular(8),
+              child: SizedBox(
+                width: double.infinity,
+                height: 12,
+                child: LinearProgressIndicator(
+                  value: _exportProgress,
+                  backgroundColor:
+                      Theme.of(context).colorScheme.surfaceContainerHighest,
+                  valueColor: AlwaysStoppedAnimation<Color>(
+                    Theme.of(context).colorScheme.tertiary,
+                  ),
+                ),
+              ),
+            ),
+            const SizedBox(height: 16),
+            Text(
+              'Creating annotated video with rep counts...',
+              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                    color: Theme.of(context).colorScheme.onSurfaceVariant,
+                  ),
+              textAlign: TextAlign.center,
+            ),
+          ],
+        ),
       ),
     );
   }
 
   Widget _buildControls() {
     return Container(
-      padding: const EdgeInsets.all(16),
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
       decoration: BoxDecoration(
-        color: Theme.of(context).colorScheme.surface,
+        color: Theme.of(context).colorScheme.surfaceContainerHighest,
         border: Border(
           top: BorderSide(
-            color: Theme.of(context).colorScheme.outline.withOpacity(0.2),
+            color: Theme.of(context).colorScheme.outline.withValues(alpha: 0.2),
+            width: 1,
           ),
         ),
-      ),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-        children: [
-          ElevatedButton.icon(
-            onPressed: _mode == AppMode.camera ? _stopCamera : _startCamera,
-            icon: Icon(_mode == AppMode.camera ? Icons.stop : Icons.camera),
-            label: Text(_mode == AppMode.camera ? 'Stop' : 'Camera'),
+        boxShadow: [
+          BoxShadow(
+            color: Theme.of(context).colorScheme.shadow.withValues(alpha: 0.1),
+            blurRadius: 8,
+            offset: const Offset(0, -2),
           ),
-          ElevatedButton.icon(
-            onPressed: _pickVideo,
-            icon: const Icon(Icons.video_library),
-            label: const Text('Video'),
-          ),
-          if (_mode == AppMode.video && _currentVideoPath != null)
-            ElevatedButton.icon(
-              onPressed: _analyzeVideo,
-              icon: const Icon(Icons.analytics),
-              label: const Text('Analyze'),
-            ),
-          if (_mode == AppMode.video && _videoFrameKeypoints.isNotEmpty)
-            ElevatedButton.icon(
-              onPressed: _exportAnnotatedVideo,
-              icon: const Icon(Icons.file_download),
-              label: const Text('Export'),
-            ),
         ],
+      ),
+      child: SingleChildScrollView(
+        scrollDirection: Axis.horizontal,
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            // Camera button - Modern design
+            _buildModernButton(
+              icon: _mode == AppMode.camera
+                  ? Icons.stop_rounded
+                  : Icons.videocam_rounded,
+              label: _mode == AppMode.camera ? 'Stop' : 'Camera',
+              onPressed: _mode == AppMode.camera ? _stopCamera : _startCamera,
+              isPrimary: _mode == AppMode.camera,
+              color: Theme.of(context).colorScheme.primary,
+            ),
+            const SizedBox(width: 12),
+            // Video button - Modern design
+            _buildModernButton(
+              icon: Icons.video_library_rounded,
+              label: 'Video',
+              onPressed: _pickVideo,
+              isPrimary: false,
+              color: Theme.of(context).colorScheme.tertiary,
+            ),
+            if (_mode == AppMode.video && _currentVideoPath != null) ...[
+              const SizedBox(width: 12),
+              // Analyze button - Modern design
+              _buildModernButton(
+                icon: Icons.analytics_rounded,
+                label: 'Analyze',
+                onPressed: _analyzeVideo,
+                isPrimary: true,
+                color: Theme.of(context).colorScheme.secondary,
+              ),
+            ],
+            if (_mode == AppMode.video && _videoFrameKeypoints.isNotEmpty) ...[
+              const SizedBox(width: 12),
+              // Export button - Modern design
+              _buildModernButton(
+                icon: Icons.file_download_rounded,
+                label: 'Export',
+                onPressed: _exportAnnotatedVideo,
+                isPrimary: false,
+                color: Theme.of(context).colorScheme.tertiary,
+              ),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildModernButton({
+    required IconData icon,
+    required String label,
+    required VoidCallback onPressed,
+    required bool isPrimary,
+    required Color color,
+  }) {
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: onPressed,
+        borderRadius: BorderRadius.circular(16),
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
+          decoration: BoxDecoration(
+            gradient: isPrimary
+                ? LinearGradient(
+                    colors: [
+                      color,
+                      color.withValues(alpha: 0.8),
+                    ],
+                  )
+                : null,
+            color: isPrimary ? null : color.withValues(alpha: 0.15),
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(
+              color: color.withValues(alpha: isPrimary ? 0 : 0.3),
+              width: isPrimary ? 0 : 2,
+            ),
+            boxShadow: isPrimary
+                ? [
+                    BoxShadow(
+                      color: color.withValues(alpha: 0.3),
+                      blurRadius: 12,
+                      offset: const Offset(0, 4),
+                    ),
+                  ]
+                : null,
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(
+                icon,
+                color:
+                    isPrimary ? Theme.of(context).colorScheme.onPrimary : color,
+                size: 22,
+              ),
+              const SizedBox(width: 10),
+              Text(
+                label,
+                style: TextStyle(
+                  color: isPrimary
+                      ? Theme.of(context).colorScheme.onPrimary
+                      : color,
+                  fontSize: 15,
+                  fontWeight: FontWeight.w600,
+                  letterSpacing: 0.5,
+                ),
+              ),
+            ],
+          ),
+        ),
       ),
     );
   }
@@ -652,8 +1104,30 @@ class _FitnessScreenState extends State<FitnessScreen> {
   void _showError(String message) {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
-        content: Text(message),
-        backgroundColor: Colors.red,
+        content: Row(
+          children: [
+            Icon(
+              Icons.error_outline_rounded,
+              color: Theme.of(context).colorScheme.onError,
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Text(
+                message,
+                style: TextStyle(
+                  color: Theme.of(context).colorScheme.onError,
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
+            ),
+          ],
+        ),
+        backgroundColor: Theme.of(context).colorScheme.error,
+        behavior: SnackBarBehavior.floating,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(12),
+        ),
+        duration: const Duration(seconds: 4),
       ),
     );
   }
@@ -661,8 +1135,30 @@ class _FitnessScreenState extends State<FitnessScreen> {
   void _showSuccess(String message) {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
-        content: Text(message),
-        backgroundColor: Colors.green,
+        content: Row(
+          children: [
+            Icon(
+              Icons.check_circle_outline_rounded,
+              color: Theme.of(context).colorScheme.onPrimary,
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Text(
+                message,
+                style: TextStyle(
+                  color: Theme.of(context).colorScheme.onPrimary,
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
+            ),
+          ],
+        ),
+        backgroundColor: Theme.of(context).colorScheme.primary,
+        behavior: SnackBarBehavior.floating,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(12),
+        ),
+        duration: const Duration(seconds: 4),
       ),
     );
   }

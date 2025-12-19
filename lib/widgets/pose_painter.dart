@@ -21,8 +21,8 @@ class PosePainter extends CustomPainter {
     this.exerciseType,
     this.lineColor,
     this.pointColor,
-    this.lineWidth = 3.0,
-    this.pointRadius = 6.0,
+    this.lineWidth = 4.0,
+    this.pointRadius = 7.0,
     this.showLabels = false,
     this.highDpi = false,
   });
@@ -35,12 +35,12 @@ class PosePainter extends CustomPainter {
     final effectiveLineWidth = highDpi ? lineWidth * 2 : lineWidth;
     final effectivePointRadius = highDpi ? pointRadius * 2 : pointRadius;
 
-    // Determine colors based on exercise type
+    // Determine colors based on exercise type - using modern theme colors
     final Color effectiveLineColor = lineColor ??
         (exerciseType != null
             ? PoseColors.forExerciseType(exerciseType!)
-            : Colors.green);
-    final Color effectivePointColor = pointColor ?? Colors.blue;
+            : PoseColors.primaryLime);
+    final Color effectivePointColor = pointColor ?? PoseColors.accentPurple;
 
     PoseUtils.drawPoseSkeleton(
       canvas: canvas,

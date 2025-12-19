@@ -132,12 +132,11 @@ class RepCounter {
     // Calculate elbow angles (use available side or average both)
     double avgAngle;
     if (hasLeft && hasRight) {
-      final leftAngle = _calculateAngle(leftShoulder!, leftElbow!, leftWrist!);
-      final rightAngle =
-          _calculateAngle(rightShoulder!, rightElbow!, rightWrist!);
+      final leftAngle = _calculateAngle(leftShoulder, leftElbow, leftWrist);
+      final rightAngle = _calculateAngle(rightShoulder, rightElbow, rightWrist);
       avgAngle = (leftAngle + rightAngle) / 2;
     } else if (hasLeft) {
-      avgAngle = _calculateAngle(leftShoulder!, leftElbow!, leftWrist!);
+      avgAngle = _calculateAngle(leftShoulder, leftElbow, leftWrist);
     } else {
       avgAngle = _calculateAngle(rightShoulder!, rightElbow!, rightWrist!);
     }
@@ -194,11 +193,11 @@ class RepCounter {
     // Calculate hip angles (use available side or average both)
     double avgAngle;
     if (hasLeft && hasRight) {
-      final leftAngle = _calculateAngle(leftShoulder!, leftHip!, leftKnee!);
-      final rightAngle = _calculateAngle(rightShoulder!, rightHip!, rightKnee!);
+      final leftAngle = _calculateAngle(leftShoulder, leftHip, leftKnee);
+      final rightAngle = _calculateAngle(rightShoulder, rightHip, rightKnee);
       avgAngle = (leftAngle + rightAngle) / 2;
     } else if (hasLeft) {
-      avgAngle = _calculateAngle(leftShoulder!, leftHip!, leftKnee!);
+      avgAngle = _calculateAngle(leftShoulder, leftHip, leftKnee);
     } else {
       avgAngle = _calculateAngle(rightShoulder!, rightHip!, rightKnee!);
     }

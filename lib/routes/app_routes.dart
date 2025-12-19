@@ -7,6 +7,8 @@ import '../presentation/home_dashboard_screen/home_dashboard_screen.dart';
 import '../presentation/recognition_results_screen/recognition_results_screen.dart';
 import '../presentation/food_logging_screen/food_logging_screen.dart';
 import '../presentation/fitness_screen/fitness_screen.dart';
+import '../presentation/recipes_screen/recipes_screen.dart';
+import '../presentation/recipe_details_screen/recipe_details_screen.dart';
 
 class AppRoutes {
   // TODO: Add your routes here
@@ -19,6 +21,8 @@ class AppRoutes {
   static const String recognitionResults = '/recognition-results-screen';
   static const String foodLogging = '/food-logging-screen';
   static const String fitness = '/fitness-screen';
+  static const String recipes = '/recipes-screen';
+  static const String recipeDetails = '/recipe-details-screen';
 
   static Map<String, WidgetBuilder> routes = {
     initial: (context) => const HomeDashboardScreen(),
@@ -30,6 +34,8 @@ class AppRoutes {
     recognitionResults: (context) => const RecognitionResultsScreen(),
     foodLogging: (context) => const FoodLoggingScreen(),
     fitness: (context) => const FitnessScreen(),
+    recipes: (context) => const RecipesScreen(),
+    recipeDetails: (context) => const RecipeDetailsScreen(),
     // TODO: Add your other routes here
   };
 }

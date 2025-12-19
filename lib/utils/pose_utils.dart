@@ -21,22 +21,33 @@ class PoseUtils {
     required Size size,
     required List<Keypoint> keypoints,
     int? repCount,
-    Color lineColor = Colors.green,
-    Color pointColor = Colors.blue,
-    double lineWidth = 3.0,
-    double pointRadius = 6.0,
+    Color? lineColor,
+    Color? pointColor,
+    double lineWidth = 4.0,
+    double pointRadius = 7.0,
     bool showLabels = false,
   }) {
     if (keypoints.isEmpty) return;
 
+    // Use modern theme colors by default
+    final effectiveLineColor = lineColor ?? PoseColors.primaryLime;
+    final effectivePointColor = pointColor ?? const Color(0xFF6A6AED);
+
     final linePaint = Paint()
-      ..color = lineColor
+      ..color = effectiveLineColor
       ..strokeWidth = lineWidth
-      ..strokeCap = StrokeCap.round;
+      ..strokeCap = StrokeCap.round
+      ..style = PaintingStyle.stroke;
 
     final pointPaint = Paint()
-      ..color = pointColor
+      ..color = effectivePointColor
       ..style = PaintingStyle.fill;
+
+    // Add glow effect for points
+    final glowPaint = Paint()
+      ..color = effectivePointColor.withValues(alpha: 0.3)
+      ..style = PaintingStyle.fill
+      ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 8);
 
     // Draw skeleton connections
     for (final connection in KeypointNames.connections) {
@@ -50,46 +61,48 @@ class PoseUtils {
       }
     }
 
-    // Draw keypoints
+    // Draw keypoints with glow
     for (final kp in keypoints) {
       final center = Offset(kp.x * size.width, kp.y * size.height);
+
+      // Draw glow
+      canvas.drawCircle(center, pointRadius * 2, glowPaint);
+
+      // Draw point
       canvas.drawCircle(center, pointRadius, pointPaint);
 
-      // Optional: draw keypoint labels
+      // Draw inner highlight
+      final highlightPaint = Paint()
+        ..color = Colors.white.withValues(alpha: 0.5)
+        ..style = PaintingStyle.fill;
+      canvas.drawCircle(center, pointRadius * 0.5, highlightPaint);
+
+      // Optional: draw keypoint labels with better styling
       if (showLabels) {
         final textPainter = TextPainter(
           text: TextSpan(
             text: kp.name.split('_').last,
-            style: const TextStyle(color: Colors.white, fontSize: 10),
+            style: TextStyle(
+              color: Colors.white,
+              fontSize: 11,
+              fontWeight: FontWeight.bold,
+              shadows: [
+                Shadow(
+                  offset: const Offset(1, 1),
+                  blurRadius: 3,
+                  color: Colors.black.withValues(alpha: 0.8),
+                ),
+              ],
+            ),
           ),
           textDirection: TextDirection.ltr,
         )..layout();
 
         textPainter.paint(
           canvas,
-          Offset(center.dx + 8, center.dy - 5),
+          Offset(center.dx + 10, center.dy - 8),
         );
       }
-    }
-
-    // Draw rep count overlay
-    if (repCount != null) {
-      final textPainter = TextPainter(
-        text: TextSpan(
-          text: 'Reps: $repCount',
-          style: const TextStyle(
-            color: Colors.white,
-            fontSize: 32,
-            fontWeight: FontWeight.bold,
-            shadows: [
-              Shadow(offset: Offset(2, 2), blurRadius: 4, color: Colors.black),
-            ],
-          ),
-        ),
-        textDirection: TextDirection.ltr,
-      )..layout();
-
-      textPainter.paint(canvas, const Offset(20, 20));
     }
   }
 
@@ -136,7 +149,7 @@ class PoseUtils {
     final width = image.width;
     final height = image.height;
 
-    // Draw connections
+    // Draw connections with modern lime color
     for (final connection in KeypointNames.connections) {
       final start = _findKeypoint(keypoints, connection[0]);
       final end = _findKeypoint(keypoints, connection[1]);
@@ -153,13 +166,13 @@ class PoseUtils {
           y1: y1,
           x2: x2,
           y2: y2,
-          color: img.ColorRgb8(0, 255, 0), // Green
-          thickness: 3,
+          color: img.ColorRgb8(69, 197, 136), // Modern lime theme color
+          thickness: 4,
         );
       }
     }
 
-    // Draw keypoints
+    // Draw keypoints with modern purple accent
     for (final kp in keypoints) {
       final x = (kp.x * width).toInt();
       final y = (kp.y * height).toInt();
@@ -168,20 +181,20 @@ class PoseUtils {
         image,
         x: x,
         y: y,
-        radius: 6,
-        color: img.ColorRgb8(0, 0, 255), // Blue
+        radius: 8,
+        color: img.ColorRgb8(106, 106, 237), // Modern purple accent
       );
     }
 
-    // Draw rep count text
+    // Draw rep count text with better styling
     if (repCount != null) {
       img.drawString(
         image,
-        'Reps: $repCount',
+        'REPS: $repCount',
         font: img.arial48,
-        x: 20,
-        y: 20,
-        color: img.ColorRgb8(255, 255, 255),
+        x: 30,
+        y: 30,
+        color: img.ColorRgb8(69, 197, 136), // Modern lime theme color
       );
     }
 
@@ -288,11 +301,18 @@ class PoseUtils {
   }
 }
 
-// Color schemes for different exercise types
+// Modern color schemes for different exercise types matching app theme
 class PoseColors {
-  static const Color pushUpColor = Colors.green;
-  static const Color pullUpColor = Colors.blue;
-  static const Color sitUpColor = Colors.orange;
+  // Using app theme colors for better visual consistency
+  static const Color primaryLime = Color.fromRGBO(69, 197, 136, 1.0);
+  static const Color accentPurple = Color(0xFF6A6AED);
+  static const Color accentOrange = Color(0xFFFF7F3F);
+  static const Color accentBlue = Color.fromARGB(255, 3, 222, 238);
+
+  static const Color pushUpColor = primaryLime;
+  static const Color pullUpColor = accentBlue;
+  static const Color sitUpColor = accentOrange;
+  static const Color squatColor = accentPurple;
 
   static Color forExerciseType(String exerciseType) {
     switch (exerciseType.toLowerCase()) {
@@ -305,8 +325,10 @@ class PoseColors {
       case 'situp':
       case 'sit_up':
         return sitUpColor;
+      case 'squat':
+        return squatColor;
       default:
-        return Colors.green;
+        return primaryLime;
     }
   }
 }

@@ -114,7 +114,8 @@ class VideoService {
     int targetFps = 15,
     String? outputDir,
     Function(double)? onProgress,
-    int concurrentExtractions = 8, // Process 8 frames simultaneously
+    int concurrentExtractions = 16, // Increased to 16 for faster extraction
+    int quality = 70, // Reduced quality for faster extraction
   }) async {
     try {
       print(
@@ -146,7 +147,8 @@ class VideoService {
         frameTimestamps.add(timeMs);
       }
 
-      print('Extracting ~${frameTimestamps.length} frames...');
+      print(
+          'Extracting ~${frameTimestamps.length} frames (JPEG quality: $quality)...');
 
       // Process frames in concurrent batches
       for (int i = 0; i < frameTimestamps.length; i += concurrentExtractions) {
@@ -164,14 +166,15 @@ class VideoService {
               final thumbnailPath = await VideoThumbnail.thumbnailFile(
                 video: videoPath,
                 thumbnailPath: frameDir,
-                imageFormat: ImageFormat.PNG,
+                imageFormat:
+                    ImageFormat.JPEG, // Changed to JPEG for faster extraction
                 timeMs: timeMs,
-                quality: 100,
+                quality: quality, // Use configurable quality
               );
 
               if (thumbnailPath != null) {
                 final newPath =
-                    '$frameDir/frame_${index.toString().padLeft(4, '0')}.png';
+                    '$frameDir/frame_${index.toString().padLeft(4, '0')}.jpg'; // Changed to .jpg
                 await File(thumbnailPath).rename(newPath);
                 return newPath;
               }
