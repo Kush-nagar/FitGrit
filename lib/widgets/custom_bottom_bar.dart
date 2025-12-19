@@ -10,17 +10,11 @@ enum CustomBottomBarItem {
     activeIcon: Icons.home,
     label: 'Home',
   ),
-  log(
-    route: '/food-log-history-screen',
-    icon: Icons.restaurant_menu_outlined,
-    activeIcon: Icons.restaurant_menu,
-    label: 'Log',
-  ),
-  recipes(
-    route: '/recipe-suggestions-screen',
-    icon: Icons.book_outlined,
-    activeIcon: Icons.book,
-    label: 'Recipes',
+  fitness(
+    route: '/fitness-screen',
+    icon: Icons.fitness_center_outlined,
+    activeIcon: Icons.fitness_center,
+    label: 'Fitness',
   ),
   profile(
     route: '/user-profile-screen',

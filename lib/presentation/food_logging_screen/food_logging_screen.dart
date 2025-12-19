@@ -157,7 +157,7 @@ class _FoodLoggingScreenState extends State<FoodLoggingScreen> {
         action = () => _showSecurityRulesDialog();
       } else {
         userMessage =
-            'Failed to log food: ${errorMessage.length > 60 ? errorMessage.substring(0, 60) + '...' : errorMessage}';
+            'Failed to log food: ${errorMessage.length > 60 ? '${errorMessage.substring(0, 60)}...' : errorMessage}';
       }
 
       ScaffoldMessenger.of(context).showSnackBar(

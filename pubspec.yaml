@@ -33,7 +33,11 @@ dependencies:
   camera: ^0.11.3
   image_picker: ^1.0.4
   permission_handler: ^12.0.1
+  video_player: ^2.9.2
+  tflite_flutter: ^0.11.0
+  path_provider: ^2.1.5
   flutter_slidable: ^4.0.3
+  video_thumbnail: ^0.5.3
   speech_to_text: ^7.3.0
   share_plus: ^12.0.1
   intl: ^0.20.2
@@ -49,6 +53,7 @@ flutter:
   assets:
     - assets/
     - assets/images/
+    - assets/models/  # MoveNet TFLite model
   # CRITICAL ASSET MANAGEMENT RULES:
   # - DO NOT ADD NEW ASSET DIRECTORIES (assets/svg/, assets/icons/, etc.)
   # - ONLY USE EXISTING AND ITEMS AVAILABLE IN THE DIRECTORIES LISTED ABOVE (assets/, assets/images/)

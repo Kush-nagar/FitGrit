@@ -776,13 +776,13 @@ service cloud.firestore {
               color: theme.colorScheme.primary.withValues(alpha: 0.1),
             ),
             child: IconButton(
-              onPressed: () => _selectDate(context),
+              onPressed: () => Navigator.pushNamed(context, '/fitness-screen'),
               icon: CustomIconWidget(
-                iconName: 'calendar_today',
+                iconName: 'fitness_center',
                 color: theme.colorScheme.primary,
                 size: 22,
               ),
-              tooltip: 'Select date',
+              tooltip: 'Fitness',
             ),
           ),
         ],
