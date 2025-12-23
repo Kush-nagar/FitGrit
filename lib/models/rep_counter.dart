@@ -30,12 +30,37 @@ class RepCounter {
 
   RepCounter({
     required this.exerciseType,
-    this.upThreshold = 0.65,
-    this.downThreshold = 0.35,
+    double? upThreshold,
+    double? downThreshold,
     this.transitionDebounce = 200,
-  }) {
+  })  : upThreshold = upThreshold ?? _getDefaultUpThreshold(exerciseType),
+        downThreshold =
+            downThreshold ?? _getDefaultDownThreshold(exerciseType) {
     print('RepCounter initialized for $exerciseType');
-    print('Thresholds - Up: $upThreshold, Down: $downThreshold');
+    print('Thresholds - Up: ${this.upThreshold}, Down: ${this.downThreshold}');
+  }
+
+  // Exercise-specific default thresholds
+  static double _getDefaultUpThreshold(ExerciseType type) {
+    switch (type) {
+      case ExerciseType.pushUp:
+        return 0.65;
+      case ExerciseType.pullUp:
+        return 0.70; // Higher threshold for pull-ups (more strict)
+      case ExerciseType.sitUp:
+        return 0.60; // Moderate threshold for sit-ups (clear sitting position)
+    }
+  }
+
+  static double _getDefaultDownThreshold(ExerciseType type) {
+    switch (type) {
+      case ExerciseType.pushUp:
+        return 0.35;
+      case ExerciseType.pullUp:
+        return 0.30; // Lower threshold for pull-ups (ensure full extension)
+      case ExerciseType.sitUp:
+        return 0.25; // Lower threshold for sit-ups (ensure lying flat)
+    }
   }
 
   /// Update rep counter with latest keypoints and timestamp.
@@ -59,15 +84,29 @@ class RepCounter {
     final smoothedSignal =
         _signalHistory.reduce((a, b) => a + b) / _signalHistory.length;
 
-    // Debug logging every 10 frames
+    // Enhanced debug logging for pull-ups and sit-ups
     if (_repTimeline.length % 10 == 0) {
-      print(
-          'Signal: ${signal.toStringAsFixed(3)}, Smoothed: ${smoothedSignal.toStringAsFixed(3)}, State: $_currentState, Reps: $_repCount');
+      if (exerciseType == ExerciseType.pullUp) {
+        print(
+            '🏋️ Pull-up Signal: ${signal.toStringAsFixed(3)}, Smoothed: ${smoothedSignal.toStringAsFixed(3)}, '
+            'State: $_currentState, Reps: $_repCount, '
+            'Up threshold: ${upThreshold.toStringAsFixed(2)}, Down threshold: ${downThreshold.toStringAsFixed(2)}');
+      } else if (exerciseType == ExerciseType.sitUp) {
+        print(
+            '🧘 Sit-up Signal: ${signal.toStringAsFixed(3)}, Smoothed: ${smoothedSignal.toStringAsFixed(3)}, '
+            'State: $_currentState, Reps: $_repCount, '
+            'Up threshold: ${upThreshold.toStringAsFixed(2)}, Down threshold: ${downThreshold.toStringAsFixed(2)}');
+      } else {
+        print(
+            'Signal: ${signal.toStringAsFixed(3)}, Smoothed: ${smoothedSignal.toStringAsFixed(3)}, '
+            'State: $_currentState, Reps: $_repCount');
+      }
     }
 
-    // Debounce transitions
+    // Debounce transitions (skip debounce for the very first update)
     final timeSinceLastTransition = timestampMillis - _lastTransitionTime;
-    if (timeSinceLastTransition < transitionDebounce) {
+    final isFirstUpdate = _repTimeline.isEmpty;
+    if (!isFirstUpdate && timeSinceLastTransition < transitionDebounce) {
       _repTimeline[timestampMillis] = _repCount;
       _stateTimeline[timestampMillis] = _currentState;
       return false;
@@ -147,13 +186,16 @@ class RepCounter {
     return normalized;
   }
 
-  /// Pull-up signal: body height (shoulders relative to wrists)
+  /// Pull-up signal: combined metric using shoulder-wrist distance and elbow extension
   double? _computePullUpSignal(List<Keypoint> keypoints) {
     final leftShoulder = _findKeypoint(keypoints, KeypointNames.leftShoulder);
     final rightShoulder = _findKeypoint(keypoints, KeypointNames.rightShoulder);
     final leftWrist = _findKeypoint(keypoints, KeypointNames.leftWrist);
     final rightWrist = _findKeypoint(keypoints, KeypointNames.rightWrist);
+    final leftElbow = _findKeypoint(keypoints, KeypointNames.leftElbow);
+    final rightElbow = _findKeypoint(keypoints, KeypointNames.rightElbow);
 
+    // Require at least shoulders and wrists
     if (leftShoulder == null ||
         rightShoulder == null ||
         leftWrist == null ||
@@ -161,18 +203,53 @@ class RepCounter {
       return null;
     }
 
-    // Calculate vertical distance between shoulders and wrists
+    // Primary signal: vertical distance between shoulders and wrists
     final shoulderY = (leftShoulder.y + rightShoulder.y) / 2;
     final wristY = (leftWrist.y + rightWrist.y) / 2;
-    final distance = (wristY - shoulderY).abs();
 
-    // Normalize: close to wrists (up) = 1.0, far from wrists (down) = 0.0
-    // Typical range: 0.1 (up) to 0.4 (down) in normalized coordinates
-    final normalized = (1.0 - (distance / 0.4)).clamp(0.0, 1.0);
+    // In pull-ups, shoulders are always below wrists (higher Y value)
+    // Down (hanging): large distance, Up (pulled up): small distance
+    final distance = shoulderY - wristY;
+
+    // Normalized coordinates: typical pull-up ranges
+    // Up position: 0.05-0.10 distance (close to bar)
+    // Down position: 0.20-0.40 distance (fully extended)
+    // We use 0.35 as max to handle both test and real-world scenarios
+    const maxDistance = 0.35;
+    const minDistance = 0.05;
+    final distanceSignal =
+        (1.0 - ((distance - minDistance) / (maxDistance - minDistance)))
+            .clamp(0.0, 1.0);
+
+    // Secondary signal: elbow angle (if available)
+    // Up position: elbows more bent (~90-110°), Down: elbows straighter (~160-180°)
+    double? elbowSignal;
+    final hasLeftElbow = leftElbow != null;
+    final hasRightElbow = rightElbow != null;
+
+    if (hasLeftElbow && hasRightElbow) {
+      final leftAngle = _calculateAngle(leftShoulder, leftElbow, leftWrist);
+      final rightAngle = _calculateAngle(rightShoulder, rightElbow, rightWrist);
+      final avgAngle = (leftAngle + rightAngle) / 2;
+      // 90° (bent/up) = 1.0, 180° (straight/down) = 0.0
+      elbowSignal = (1.0 - (avgAngle - 90) / 90).clamp(0.0, 1.0);
+    } else if (hasLeftElbow) {
+      final angle = _calculateAngle(leftShoulder, leftElbow, leftWrist);
+      elbowSignal = (1.0 - (angle - 90) / 90).clamp(0.0, 1.0);
+    } else if (hasRightElbow) {
+      final angle = _calculateAngle(rightShoulder, rightElbow, rightWrist);
+      elbowSignal = (1.0 - (angle - 90) / 90).clamp(0.0, 1.0);
+    }
+
+    // Combine signals: prioritize distance, use elbow as confirmation
+    final normalized = elbowSignal != null
+        ? (distanceSignal * 0.7 + elbowSignal * 0.3) // Weighted average
+        : distanceSignal; // Distance only if elbows not visible
+
     return normalized;
   }
 
-  /// Sit-up signal: hip-shoulder angle (sitting up = high, lying down = low)
+  /// Sit-up signal: combined metrics using torso angle and vertical position
   double? _computeSitUpSignal(List<Keypoint> keypoints) {
     final leftShoulder = _findKeypoint(keypoints, KeypointNames.leftShoulder);
     final leftHip = _findKeypoint(keypoints, KeypointNames.leftHip);
@@ -181,30 +258,58 @@ class RepCounter {
     final rightHip = _findKeypoint(keypoints, KeypointNames.rightHip);
     final rightKnee = _findKeypoint(keypoints, KeypointNames.rightKnee);
 
-    // Check if we have at least one side visible
+    // Require at least hips and shoulders
+    if ((leftShoulder == null && rightShoulder == null) ||
+        (leftHip == null && rightHip == null)) {
+      return null;
+    }
+
+    // Calculate average positions
+    final shoulderY = leftShoulder != null && rightShoulder != null
+        ? (leftShoulder.y + rightShoulder.y) / 2
+        : (leftShoulder?.y ?? rightShoulder!.y);
+
+    final hipY = leftHip != null && rightHip != null
+        ? (leftHip.y + rightHip.y) / 2
+        : (leftHip?.y ?? rightHip!.y);
+
+    // Primary signal: vertical distance between shoulders and hips
+    // Sitting up: shoulders higher (lower Y value), Lying down: shoulders lower (higher Y value)
+    final verticalDistance = (shoulderY - hipY).abs();
+
+    // When sitting up, shoulders are significantly above hips (distance 0.15-0.25)
+    // When lying down, shoulders are nearly level with hips (distance 0.02-0.08)
+    const maxDistance = 0.25; // Sitting up
+    const minDistance = 0.02; // Lying down
+    final verticalSignal =
+        ((verticalDistance - minDistance) / (maxDistance - minDistance))
+            .clamp(0.0, 1.0);
+
+    // Secondary signal: hip angle (if knees are visible)
+    double? hipAngleSignal;
     final hasLeft = leftShoulder != null && leftHip != null && leftKnee != null;
     final hasRight =
         rightShoulder != null && rightHip != null && rightKnee != null;
 
-    if (!hasLeft && !hasRight) {
-      return null;
-    }
-
-    // Calculate hip angles (use available side or average both)
-    double avgAngle;
     if (hasLeft && hasRight) {
       final leftAngle = _calculateAngle(leftShoulder, leftHip, leftKnee);
       final rightAngle = _calculateAngle(rightShoulder, rightHip, rightKnee);
-      avgAngle = (leftAngle + rightAngle) / 2;
+      final avgAngle = (leftAngle + rightAngle) / 2;
+      // 60°-80° (sitting up, torso bent forward) = 1.0, 150°-180° (lying flat) = 0.0
+      hipAngleSignal = (1.0 - (avgAngle - 60) / 100).clamp(0.0, 1.0);
     } else if (hasLeft) {
-      avgAngle = _calculateAngle(leftShoulder, leftHip, leftKnee);
-    } else {
-      avgAngle = _calculateAngle(rightShoulder!, rightHip!, rightKnee!);
+      final angle = _calculateAngle(leftShoulder, leftHip, leftKnee);
+      hipAngleSignal = (1.0 - (angle - 60) / 100).clamp(0.0, 1.0);
+    } else if (hasRight) {
+      final angle = _calculateAngle(rightShoulder, rightHip, rightKnee);
+      hipAngleSignal = (1.0 - (angle - 60) / 100).clamp(0.0, 1.0);
     }
 
-    // Normalize: 70°-90° (sitting up) = 1.0, 160°+ (lying down) = 0.0
-    // Adjusted range for more realistic sit-up angles
-    final normalized = (1.0 - (avgAngle - 70) / 90).clamp(0.0, 1.0);
+    // Combine signals: prioritize vertical distance (more reliable), use hip angle as confirmation
+    final normalized = hipAngleSignal != null
+        ? (verticalSignal * 0.75 + hipAngleSignal * 0.25) // Weighted average
+        : verticalSignal; // Distance only if knees not visible
+
     return normalized;
   }
 

@@ -348,6 +348,9 @@ Return nothing else than the JSON object.
 You are a recipe generator. ONLY OUTPUT a JSON ARRAY (no markdown, explanation or extraneous text).
 Return EXACTLY $maxRecipes recipe objects that can be made using the provided ingredients.
 
+CRITICAL: Generate ONLY food, drink, and edible recipes. DO NOT generate beauty products, face masks, skincare items, or any non-edible items.
+Focus exclusively on recipes for meals, snacks, beverages, desserts, and other consumable food items.
+
 IMPORTANT: Each recipe object MUST include ALL of these fields:
 
 {
