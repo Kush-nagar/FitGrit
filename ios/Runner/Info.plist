@@ -45,5 +45,11 @@
 	<true/>
 	<key>UIApplicationSupportsIndirectInputEvents</key>
 	<true/>
+	<key>NSCameraUsageDescription</key>
+	<string>Camera access is required for pose estimation and analysis</string>
+	<key>NSPhotoLibraryUsageDescription</key>
+	<string>Photo library access is needed to select videos for analysis</string>
+	<key>NSMicrophoneUsageDescription</key>
+	<string>Microphone access for audio feedback during exercises</string>
 </dict>
 </plist>

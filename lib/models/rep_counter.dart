@@ -1,10 +1,10 @@
 /// Exercise-specific rep counter using pose keypoints.
-/// Supports push-ups, pull-ups, and sit-ups with configurable thresholds.
+/// Supports push-ups, pull-ups, sit-ups, and running with configurable thresholds.
 /// Tracks rep timeline for video annotation.
 import 'dart:math';
 import '../models/keypoint.dart';
 
-enum ExerciseType { pushUp, pullUp, sitUp }
+enum ExerciseType { pushUp, pullUp, sitUp, running }
 
 enum RepState { up, down, transitioning }
 
@@ -49,6 +49,8 @@ class RepCounter {
         return 0.70; // Higher threshold for pull-ups (more strict)
       case ExerciseType.sitUp:
         return 0.60; // Moderate threshold for sit-ups (clear sitting position)
+      case ExerciseType.running:
+        return 0.0; // Running doesn't use rep counting
     }
   }
 
@@ -60,6 +62,8 @@ class RepCounter {
         return 0.30; // Lower threshold for pull-ups (ensure full extension)
       case ExerciseType.sitUp:
         return 0.25; // Lower threshold for sit-ups (ensure lying flat)
+      case ExerciseType.running:
+        return 0.0; // Running doesn't use rep counting
     }
   }
 
@@ -146,6 +150,8 @@ class RepCounter {
         return _computePullUpSignal(keypoints);
       case ExerciseType.sitUp:
         return _computeSitUpSignal(keypoints);
+      case ExerciseType.running:
+        return null; // Running doesn't use rep counting
     }
   }
 

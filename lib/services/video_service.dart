@@ -114,7 +114,7 @@ class VideoService {
     int targetFps = 15,
     String? outputDir,
     Function(double)? onProgress,
-    int concurrentExtractions = 16, // Increased to 16 for faster extraction
+    int concurrentExtractions = 6, // Reduced to 6 to avoid resource leaks
     int quality = 70, // Reduced quality for faster extraction
   }) async {
     try {
@@ -191,6 +191,11 @@ class VideoService {
         // Report progress (0.0 to 0.5 for extraction phase)
         if (onProgress != null) {
           onProgress((framePaths.length / totalFrames) * 0.5);
+        }
+
+        // Add small delay between batches to allow resource cleanup
+        if (i + concurrentExtractions < frameTimestamps.length) {
+          await Future.delayed(const Duration(milliseconds: 100));
         }
       }
 

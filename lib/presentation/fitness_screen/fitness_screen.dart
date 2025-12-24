@@ -11,9 +11,11 @@ import '../../widgets/custom_bottom_bar.dart';
 import '../../models/keypoint.dart';
 import '../../models/rep_counter.dart';
 import '../../models/video_frame.dart';
+import '../../models/running_form_analyzer.dart';
 import '../../services/camera_service.dart';
 import '../../services/video_service.dart';
 import '../../services/pose_estimator.dart';
+import '../../services/running_metrics_calculator.dart';
 import '../../widgets/pose_painter.dart';
 
 enum AppMode { camera, video, processing, exporting }
@@ -39,6 +41,14 @@ class _FitnessScreenState extends State<FitnessScreen> {
   ExerciseType _selectedExercise = ExerciseType.pushUp;
   RepCounter? _repCounter;
 
+  // Running analysis state
+  RunningFormAnalyzer? _runningAnalyzer;
+  RunningMetricsCalculator? _metricsCalculator;
+  RunningFormMetrics? _currentFormMetrics;
+  RunningMetrics? _currentRunMetrics;
+  RunType _selectedRunType = RunType.longDistance;
+  double _runnerHeight = 1.75; // meters
+
   List<Keypoint> _currentKeypoints = [];
   List<Keypoint> _smoothedKeypoints = [];
   bool _isProcessing = false;
@@ -62,6 +72,11 @@ class _FitnessScreenState extends State<FitnessScreen> {
     try {
       await _poseEstimator.initialize();
       _repCounter = RepCounter(exerciseType: _selectedExercise);
+      _runningAnalyzer = RunningFormAnalyzer(runType: _selectedRunType);
+      _metricsCalculator = RunningMetricsCalculator(
+        runnerHeight: _runnerHeight,
+        videoFps: 30.0,
+      );
       setState(() {});
     } catch (e) {
       _showError('Initialization failed: $e');
@@ -121,9 +136,22 @@ class _FitnessScreenState extends State<FitnessScreen> {
               ? _currentKeypoints
               : _currentKeypoints;
 
-      if (_repCounter != null) {
-        final timestamp = DateTime.now().millisecondsSinceEpoch;
-        _repCounter!.update(_smoothedKeypoints, timestamp);
+      final timestamp = DateTime.now().millisecondsSinceEpoch;
+
+      // Update rep counter or running analyzer based on exercise type
+      if (_selectedExercise == ExerciseType.running) {
+        if (_runningAnalyzer != null) {
+          _currentFormMetrics =
+              _runningAnalyzer!.analyzeFrame(_smoothedKeypoints, timestamp);
+        }
+        if (_metricsCalculator != null) {
+          _metricsCalculator!.addFrame(_smoothedKeypoints, timestamp);
+          _currentRunMetrics = _metricsCalculator!.calculateMetrics();
+        }
+      } else {
+        if (_repCounter != null) {
+          _repCounter!.update(_smoothedKeypoints, timestamp);
+        }
       }
 
       if (mounted) {
@@ -242,9 +270,22 @@ class _FitnessScreenState extends State<FitnessScreen> {
             }),
           );
 
-          // Update rep counter and store results
+          // Update rep counter or running analyzer and store results
           for (final result in batchKeypoints) {
-            _repCounter?.update(result.keypoints, result.timestamp);
+            if (_selectedExercise == ExerciseType.running) {
+              // Running analysis
+              if (_runningAnalyzer != null) {
+                _currentFormMetrics = _runningAnalyzer!
+                    .analyzeFrame(result.keypoints, result.timestamp);
+              }
+              if (_metricsCalculator != null) {
+                _metricsCalculator!
+                    .addFrame(result.keypoints, result.timestamp);
+              }
+            } else {
+              // Rep counting for other exercises
+              _repCounter?.update(result.keypoints, result.timestamp);
+            }
             _videoFrameKeypoints[result.timestamp] = result.keypoints;
           }
         }
@@ -261,13 +302,36 @@ class _FitnessScreenState extends State<FitnessScreen> {
       await _videoService
           .cleanupFrameDirectory('${tempDir.path}/video_frames_*');
 
+      // Calculate final metrics for running
+      if (_selectedExercise == ExerciseType.running &&
+          _metricsCalculator != null) {
+        _currentRunMetrics = _metricsCalculator!.calculateMetrics();
+      }
+
       setState(() {
         _mode = AppMode.video;
         _exportProgress = 0.0;
       });
 
-      _showSuccess(
-          'Video analysis complete! Reps: ${_repCounter?.repCount ?? 0}');
+      if (_selectedExercise == ExerciseType.running) {
+        // Show running-specific results
+        final formQuality =
+            _currentFormMetrics?.overallQuality.toString().split('.').last ??
+                'Unknown';
+        final pace = _formatPace(_currentRunMetrics?.averagePace ?? 0);
+        final speed =
+            _currentRunMetrics?.averageSpeed.toStringAsFixed(1) ?? '0';
+
+        _showRunningResults(
+          formQuality: formQuality,
+          pace: pace,
+          speed: speed,
+          distance: _currentRunMetrics?.totalDistance.toStringAsFixed(1) ?? '0',
+        );
+      } else {
+        _showSuccess(
+            'Video analysis complete! Reps: ${_repCounter?.repCount ?? 0}');
+      }
     } catch (e) {
       _showError('Video analysis failed: $e');
       setState(() => _mode = AppMode.video);
@@ -416,12 +480,33 @@ class _FitnessScreenState extends State<FitnessScreen> {
                 if (value != null) {
                   setState(() {
                     _selectedExercise = value;
-                    _repCounter = RepCounter(exerciseType: value);
+                    if (value == ExerciseType.running) {
+                      _runningAnalyzer =
+                          RunningFormAnalyzer(runType: _selectedRunType);
+                      _metricsCalculator = RunningMetricsCalculator(
+                        runnerHeight: _runnerHeight,
+                        videoFps: 30.0,
+                      );
+                      _currentFormMetrics = null;
+                      _currentRunMetrics = null;
+                    } else {
+                      _repCounter = RepCounter(exerciseType: value);
+                    }
                   });
                 }
               },
             ),
           ),
+          // Running settings button (only show when running is selected)
+          if (_selectedExercise == ExerciseType.running)
+            Padding(
+              padding: const EdgeInsets.only(right: 8),
+              child: IconButton(
+                icon: Icon(Icons.settings, color: theme.colorScheme.primary),
+                onPressed: _showRunningSettings,
+                tooltip: 'Running Settings',
+              ),
+            ),
         ],
       ),
       body: _buildBody(),
@@ -529,61 +614,70 @@ class _FitnessScreenState extends State<FitnessScreen> {
         Positioned.fill(
           child: PoseOverlay(
             keypoints: _smoothedKeypoints,
-            repCount: _repCounter?.repCount,
+            repCount: _selectedExercise == ExerciseType.running
+                ? null
+                : _repCounter?.repCount,
             exerciseType: _selectedExercise.toString().split('.').last,
           ),
         ),
-        // Modern rep counter display
-        Positioned(
-          top: 24,
-          left: 24,
-          right: 24,
-          child: Container(
-            padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
-            decoration: BoxDecoration(
-              gradient: LinearGradient(
-                colors: [
-                  Theme.of(context).colorScheme.primary.withValues(alpha: 0.95),
-                  Theme.of(context)
-                      .colorScheme
-                      .primaryContainer
-                      .withValues(alpha: 0.95),
+        // Display running metrics overlay for running
+        if (_selectedExercise == ExerciseType.running)
+          _buildRunningMetricsOverlay(),
+        // Modern rep counter display for other exercises
+        if (_selectedExercise != ExerciseType.running)
+          Positioned(
+            top: 24,
+            left: 24,
+            right: 24,
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  colors: [
+                    Theme.of(context)
+                        .colorScheme
+                        .primary
+                        .withValues(alpha: 0.95),
+                    Theme.of(context)
+                        .colorScheme
+                        .primaryContainer
+                        .withValues(alpha: 0.95),
+                  ],
+                ),
+                borderRadius: BorderRadius.circular(16),
+                boxShadow: [
+                  BoxShadow(
+                    color: Theme.of(context)
+                        .colorScheme
+                        .shadow
+                        .withValues(alpha: 0.3),
+                    blurRadius: 12,
+                    offset: const Offset(0, 4),
+                  ),
                 ],
               ),
-              borderRadius: BorderRadius.circular(16),
-              boxShadow: [
-                BoxShadow(
-                  color: Theme.of(context)
-                      .colorScheme
-                      .shadow
-                      .withValues(alpha: 0.3),
-                  blurRadius: 12,
-                  offset: const Offset(0, 4),
-                ),
-              ],
-            ),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Icon(
-                  Icons.fitness_center,
-                  color: Theme.of(context).colorScheme.onPrimary,
-                  size: 28,
-                ),
-                const SizedBox(width: 12),
-                Text(
-                  'REPS: ${_repCounter?.repCount ?? 0}',
-                  style: TextStyle(
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(
+                    Icons.fitness_center,
                     color: Theme.of(context).colorScheme.onPrimary,
-                    fontSize: 32,
-                    fontWeight: FontWeight.bold,
-                    letterSpacing: 2,
+                    size: 28,
                   ),
-                ),
-              ],
+                  const SizedBox(width: 12),
+                  Text(
+                    'REPS: ${_repCounter?.repCount ?? 0}',
+                    style: TextStyle(
+                      color: Theme.of(context).colorScheme.onPrimary,
+                      fontSize: 32,
+                      fontWeight: FontWeight.bold,
+                      letterSpacing: 2,
+                    ),
+                  ),
+                ],
+              ),
             ),
           ),
-        ),
       ],
     );
   }
@@ -1101,6 +1195,289 @@ class _FitnessScreenState extends State<FitnessScreen> {
     );
   }
 
+  /// Show running settings dialog
+  void _showRunningSettings() {
+    showDialog(
+      context: context,
+      builder: (context) {
+        RunType tempRunType = _selectedRunType;
+        double tempHeight = _runnerHeight;
+
+        return StatefulBuilder(
+          builder: (context, setDialogState) {
+            return AlertDialog(
+              title: const Text('Running Settings'),
+              content: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  // Run type selector
+                  const Text('Run Type:',
+                      style: TextStyle(fontWeight: FontWeight.bold)),
+                  const SizedBox(height: 8),
+                  DropdownButton<RunType>(
+                    value: tempRunType,
+                    isExpanded: true,
+                    items: RunType.values.map((type) {
+                      return DropdownMenuItem(
+                        value: type,
+                        child: Text(type.toString().split('.').last),
+                      );
+                    }).toList(),
+                    onChanged: (value) {
+                      if (value != null) {
+                        setDialogState(() => tempRunType = value);
+                      }
+                    },
+                  ),
+                  const SizedBox(height: 16),
+                  // Runner height slider
+                  const Text('Runner Height:',
+                      style: TextStyle(fontWeight: FontWeight.bold)),
+                  const SizedBox(height: 8),
+                  Text('${tempHeight.toStringAsFixed(2)} meters'),
+                  Slider(
+                    value: tempHeight,
+                    min: 1.4,
+                    max: 2.1,
+                    divisions: 70,
+                    label: '${tempHeight.toStringAsFixed(2)}m',
+                    onChanged: (value) {
+                      setDialogState(() => tempHeight = value);
+                    },
+                  ),
+                ],
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.pop(context),
+                  child: const Text('Cancel'),
+                ),
+                ElevatedButton(
+                  onPressed: () {
+                    setState(() {
+                      _selectedRunType = tempRunType;
+                      _runnerHeight = tempHeight;
+                      _runningAnalyzer =
+                          RunningFormAnalyzer(runType: _selectedRunType);
+                      _metricsCalculator = RunningMetricsCalculator(
+                        runnerHeight: _runnerHeight,
+                        videoFps: 30.0,
+                      );
+                    });
+                    Navigator.pop(context);
+                  },
+                  child: const Text('Apply'),
+                ),
+              ],
+            );
+          },
+        );
+      },
+    );
+  }
+
+  /// Show running analysis results dialog
+  void _showRunningResults({
+    required String formQuality,
+    required String pace,
+    required String speed,
+    required String distance,
+  }) {
+    final theme = Theme.of(context);
+    final isGoodForm = formQuality.toLowerCase() == 'excellent' ||
+        formQuality.toLowerCase() == 'good';
+
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Row(
+          children: [
+            Icon(
+              Icons.directions_run,
+              color: theme.colorScheme.primary,
+              size: 28,
+            ),
+            const SizedBox(width: 12),
+            const Text('Running Analysis Complete'),
+          ],
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // Form Quality Section
+            Container(
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: isGoodForm
+                    ? Colors.green.withValues(alpha: 0.1)
+                    : Colors.orange.withValues(alpha: 0.1),
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(
+                  color: isGoodForm
+                      ? Colors.green.withValues(alpha: 0.3)
+                      : Colors.orange.withValues(alpha: 0.3),
+                  width: 2,
+                ),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Icon(
+                        isGoodForm
+                            ? Icons.check_circle_outline
+                            : Icons.warning_amber_rounded,
+                        color: isGoodForm ? Colors.green : Colors.orange,
+                        size: 24,
+                      ),
+                      const SizedBox(width: 8),
+                      Text(
+                        'Running Form: $formQuality',
+                        style: TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.bold,
+                          color: isGoodForm
+                              ? Colors.green[700]
+                              : Colors.orange[700],
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    isGoodForm
+                        ? 'Your running form looks great! Keep it up.'
+                        : 'Your form could use some improvement. Check the recommendations.',
+                    style: TextStyle(
+                      fontSize: 13,
+                      color: theme.colorScheme.onSurface.withValues(alpha: 0.7),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 16),
+
+            // Metrics Section
+            const Text(
+              'Performance Metrics',
+              style: TextStyle(
+                fontSize: 14,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+            const SizedBox(height: 12),
+
+            _buildResultRow(
+              icon: Icons.speed,
+              label: 'Speed',
+              value: '$speed km/h',
+              theme: theme,
+            ),
+            const SizedBox(height: 8),
+            _buildResultRow(
+              icon: Icons.timer,
+              label: 'Pace',
+              value: '$pace /km',
+              theme: theme,
+            ),
+            const SizedBox(height: 8),
+            _buildResultRow(
+              icon: Icons.straighten,
+              label: 'Distance',
+              value: '${distance}m',
+              theme: theme,
+            ),
+
+            if (_currentFormMetrics != null &&
+                _currentFormMetrics!.recommendations.isNotEmpty &&
+                _currentFormMetrics!.recommendations.first !=
+                    'Keep running to collect data') ...[
+              const SizedBox(height: 16),
+              const Text(
+                'Recommendations',
+                style: TextStyle(
+                  fontSize: 14,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+              const SizedBox(height: 8),
+              ..._currentFormMetrics!.recommendations.take(3).map(
+                    (rec) => Padding(
+                      padding: const EdgeInsets.only(bottom: 6),
+                      child: Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Icon(
+                            Icons.arrow_right,
+                            size: 20,
+                            color: theme.colorScheme.primary,
+                          ),
+                          const SizedBox(width: 4),
+                          Expanded(
+                            child: Text(
+                              rec,
+                              style: TextStyle(
+                                fontSize: 12,
+                                color: theme.colorScheme.onSurface
+                                    .withValues(alpha: 0.8),
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+            ],
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Close'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildResultRow({
+    required IconData icon,
+    required String label,
+    required String value,
+    required ThemeData theme,
+  }) {
+    return Row(
+      children: [
+        Icon(
+          icon,
+          size: 20,
+          color: theme.colorScheme.primary.withValues(alpha: 0.7),
+        ),
+        const SizedBox(width: 8),
+        Expanded(
+          child: Text(
+            label,
+            style: TextStyle(
+              fontSize: 13,
+              color: theme.colorScheme.onSurface.withValues(alpha: 0.7),
+            ),
+          ),
+        ),
+        Text(
+          value,
+          style: const TextStyle(
+            fontSize: 14,
+            fontWeight: FontWeight.bold,
+          ),
+        ),
+      ],
+    );
+  }
+
   void _showError(String message) {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
@@ -1161,5 +1538,240 @@ class _FitnessScreenState extends State<FitnessScreen> {
         duration: const Duration(seconds: 4),
       ),
     );
+  }
+
+  /// Build running metrics overlay display
+  Widget _buildRunningMetricsOverlay() {
+    if (_currentRunMetrics == null && _currentFormMetrics == null) {
+      return const SizedBox.shrink();
+    }
+
+    final theme = Theme.of(context);
+    final metrics = _currentRunMetrics;
+    final formMetrics = _currentFormMetrics;
+
+    return Positioned(
+      top: 24,
+      left: 16,
+      right: 16,
+      child: Container(
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            colors: [
+              theme.colorScheme.primary.withValues(alpha: 0.95),
+              theme.colorScheme.primaryContainer.withValues(alpha: 0.95),
+            ],
+          ),
+          borderRadius: BorderRadius.circular(16),
+          boxShadow: [
+            BoxShadow(
+              color: theme.colorScheme.shadow.withValues(alpha: 0.3),
+              blurRadius: 12,
+              offset: const Offset(0, 4),
+            ),
+          ],
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            // Header
+            Row(
+              children: [
+                Icon(
+                  Icons.directions_run,
+                  color: theme.colorScheme.onPrimary,
+                  size: 24,
+                ),
+                const SizedBox(width: 8),
+                Text(
+                  'RUNNING ANALYSIS',
+                  style: TextStyle(
+                    color: theme.colorScheme.onPrimary,
+                    fontSize: 18,
+                    fontWeight: FontWeight.bold,
+                    letterSpacing: 1.2,
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 12),
+            // Metrics
+            if (metrics != null) ...[
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceAround,
+                children: [
+                  _buildMetricItem(
+                    icon: Icons.straighten,
+                    label: 'Distance',
+                    value: '${metrics.totalDistance.toStringAsFixed(1)}m',
+                    theme: theme,
+                  ),
+                  _buildMetricItem(
+                    icon: Icons.speed,
+                    label: 'Speed',
+                    value: '${metrics.averageSpeed.toStringAsFixed(1)} km/h',
+                    theme: theme,
+                  ),
+                  _buildMetricItem(
+                    icon: Icons.timer,
+                    label: 'Pace',
+                    value: _formatPace(metrics.averagePace),
+                    theme: theme,
+                  ),
+                ],
+              ),
+              const SizedBox(height: 8),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceAround,
+                children: [
+                  _buildMetricItem(
+                    icon: Icons.directions_run,
+                    label: 'Cadence',
+                    value:
+                        '${(_metricsCalculator?.calculateCadence() ?? 0).toStringAsFixed(0)} spm',
+                    theme: theme,
+                  ),
+                  _buildMetricItem(
+                    icon: Icons.bolt,
+                    label: 'Max Speed',
+                    value: '${metrics.maxSpeed.toStringAsFixed(1)} km/h',
+                    theme: theme,
+                  ),
+                ],
+              ),
+            ],
+            // Form Quality
+            if (formMetrics != null) ...[
+              const SizedBox(height: 12),
+              Divider(
+                  color: theme.colorScheme.onPrimary.withValues(alpha: 0.3)),
+              const SizedBox(height: 8),
+              Row(
+                children: [
+                  Icon(
+                    _getFormQualityIcon(formMetrics.overallQuality),
+                    color: _getFormQualityColor(formMetrics.overallQuality),
+                    size: 20,
+                  ),
+                  const SizedBox(width: 8),
+                  Text(
+                    'Form: ${formMetrics.overallQuality.toString().split('.').last.toUpperCase()}',
+                    style: TextStyle(
+                      color: theme.colorScheme.onPrimary,
+                      fontSize: 14,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Text(
+                    '${formMetrics.qualityScore.toStringAsFixed(0)}/100',
+                    style: TextStyle(
+                      color: theme.colorScheme.onPrimary.withValues(alpha: 0.8),
+                      fontSize: 12,
+                    ),
+                  ),
+                ],
+              ),
+              if (formMetrics.issues.isNotEmpty &&
+                  formMetrics.issues.first != 'Analyzing...') ...[
+                const SizedBox(height: 8),
+                ...formMetrics.issues.take(2).map((issue) => Padding(
+                      padding: const EdgeInsets.only(top: 4),
+                      child: Row(
+                        children: [
+                          Icon(
+                            Icons.warning_amber_rounded,
+                            size: 14,
+                            color: Colors.orange[300],
+                          ),
+                          const SizedBox(width: 6),
+                          Expanded(
+                            child: Text(
+                              issue,
+                              style: TextStyle(
+                                color: theme.colorScheme.onPrimary
+                                    .withValues(alpha: 0.9),
+                                fontSize: 11,
+                              ),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ),
+                        ],
+                      ),
+                    )),
+              ],
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildMetricItem({
+    required IconData icon,
+    required String label,
+    required String value,
+    required ThemeData theme,
+  }) {
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Icon(icon,
+            color: theme.colorScheme.onPrimary.withValues(alpha: 0.8),
+            size: 16),
+        const SizedBox(height: 4),
+        Text(
+          value,
+          style: TextStyle(
+            color: theme.colorScheme.onPrimary,
+            fontSize: 16,
+            fontWeight: FontWeight.bold,
+          ),
+        ),
+        Text(
+          label,
+          style: TextStyle(
+            color: theme.colorScheme.onPrimary.withValues(alpha: 0.7),
+            fontSize: 10,
+          ),
+        ),
+      ],
+    );
+  }
+
+  String _formatPace(double paceMinPerKm) {
+    if (paceMinPerKm == 0 || paceMinPerKm.isInfinite) return '--:--';
+    final minutes = paceMinPerKm.floor();
+    final seconds = ((paceMinPerKm - minutes) * 60).round();
+    return '${minutes}:${seconds.toString().padLeft(2, '0')}';
+  }
+
+  IconData _getFormQualityIcon(FormQuality quality) {
+    switch (quality) {
+      case FormQuality.excellent:
+        return Icons.sentiment_very_satisfied;
+      case FormQuality.good:
+        return Icons.sentiment_satisfied;
+      case FormQuality.fair:
+        return Icons.sentiment_neutral;
+      case FormQuality.poor:
+        return Icons.sentiment_dissatisfied;
+    }
+  }
+
+  Color _getFormQualityColor(FormQuality quality) {
+    switch (quality) {
+      case FormQuality.excellent:
+        return Colors.green[400]!;
+      case FormQuality.good:
+        return Colors.lightGreen[400]!;
+      case FormQuality.fair:
+        return Colors.orange[400]!;
+      case FormQuality.poor:
+        return Colors.red[400]!;
+    }
   }
 }
