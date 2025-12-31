@@ -9,6 +9,8 @@ import '../presentation/food_logging_screen/food_logging_screen.dart';
 import '../presentation/fitness_screen/fitness_screen.dart';
 import '../presentation/recipes_screen/recipes_screen.dart';
 import '../presentation/recipe_details_screen/recipe_details_screen.dart';
+import '../presentation/running_history_screen/running_history_screen.dart';
+import '../presentation/running_details_screen/running_details_screen.dart';
 
 class AppRoutes {
   // TODO: Add your routes here
@@ -23,6 +25,8 @@ class AppRoutes {
   static const String fitness = '/fitness-screen';
   static const String recipes = '/recipes-screen';
   static const String recipeDetails = '/recipe-details-screen';
+  static const String runningHistory = '/running-history-screen';
+  static const String runningDetails = '/running-details-screen';
 
   static Map<String, WidgetBuilder> routes = {
     initial: (context) => const HomeDashboardScreen(),
@@ -36,6 +40,8 @@ class AppRoutes {
     fitness: (context) => const FitnessScreen(),
     recipes: (context) => const RecipesScreen(),
     recipeDetails: (context) => const RecipeDetailsScreen(),
+    runningHistory: (context) => const RunningHistoryScreen(),
+    runningDetails: (context) => const RunningDetailsScreen(),
     // TODO: Add your other routes here
   };
 }

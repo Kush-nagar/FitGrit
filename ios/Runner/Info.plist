@@ -51,5 +51,20 @@
 	<string>Photo library access is needed to select videos for analysis</string>
 	<key>NSMicrophoneUsageDescription</key>
 	<string>Microphone access for audio feedback during exercises</string>
+	<key>CFBundleURLTypes</key>
+	<array>
+		<dict>
+			<key>CFBundleURLSchemes</key>
+			<array>
+				<string>presapp</string>
+			</array>
+			<key>CFBundleURLName</key>
+			<string>com.example.pres_app</string>
+		</dict>
+	</array>
+	<key>LSApplicationQueriesSchemes</key>
+	<array>
+		<string>https</string>
+	</array>
 </dict>
 </plist>

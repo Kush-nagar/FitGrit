@@ -1,10 +1,10 @@
 /// Exercise-specific rep counter using pose keypoints.
-/// Supports push-ups, pull-ups, sit-ups, and running with configurable thresholds.
+/// Supports push-ups, pull-ups, sit-ups, running, and flexibility tests with configurable thresholds.
 /// Tracks rep timeline for video annotation.
 import 'dart:math';
 import '../models/keypoint.dart';
 
-enum ExerciseType { pushUp, pullUp, sitUp, running }
+enum ExerciseType { pushUp, pullUp, sitUp, running, sitAndReach, vSitAndReach }
 
 enum RepState { up, down, transitioning }
 
@@ -51,6 +51,9 @@ class RepCounter {
         return 0.60; // Moderate threshold for sit-ups (clear sitting position)
       case ExerciseType.running:
         return 0.0; // Running doesn't use rep counting
+      case ExerciseType.sitAndReach:
+      case ExerciseType.vSitAndReach:
+        return 0.70; // Significant forward reach required
     }
   }
 
@@ -64,6 +67,9 @@ class RepCounter {
         return 0.25; // Lower threshold for sit-ups (ensure lying flat)
       case ExerciseType.running:
         return 0.0; // Running doesn't use rep counting
+      case ExerciseType.sitAndReach:
+      case ExerciseType.vSitAndReach:
+        return 0.25; // Return to resting position
     }
   }
 
@@ -152,6 +158,10 @@ class RepCounter {
         return _computeSitUpSignal(keypoints);
       case ExerciseType.running:
         return null; // Running doesn't use rep counting
+      case ExerciseType.sitAndReach:
+        return _computeSitAndReachSignal(keypoints);
+      case ExerciseType.vSitAndReach:
+        return _computeVSitAndReachSignal(keypoints);
     }
   }
 
@@ -315,6 +325,87 @@ class RepCounter {
     final normalized = hipAngleSignal != null
         ? (verticalSignal * 0.75 + hipAngleSignal * 0.25) // Weighted average
         : verticalSignal; // Distance only if knees not visible
+
+    return normalized;
+  }
+
+  /// Sit-and-reach signal: forward reach based on wrist horizontal position
+  double? _computeSitAndReachSignal(List<Keypoint> keypoints) {
+    final leftWrist = _findKeypoint(keypoints, KeypointNames.leftWrist);
+    final rightWrist = _findKeypoint(keypoints, KeypointNames.rightWrist);
+    final leftHip = _findKeypoint(keypoints, KeypointNames.leftHip);
+    final rightHip = _findKeypoint(keypoints, KeypointNames.rightHip);
+
+    // Need at least wrists and hips
+    if ((leftWrist == null && rightWrist == null) ||
+        (leftHip == null && rightHip == null)) {
+      return null;
+    }
+
+    // Calculate average wrist and hip positions
+    final wristX = leftWrist != null && rightWrist != null
+        ? (leftWrist.x + rightWrist.x) / 2
+        : (leftWrist?.x ?? rightWrist!.x);
+
+    final hipX = leftHip != null && rightHip != null
+        ? (leftHip.x + rightHip.x) / 2
+        : (leftHip?.x ?? rightHip!.x);
+
+    // Calculate forward reach distance (wrist ahead of hip)
+    final reachDistance = (wristX - hipX).abs();
+
+    // Normalize: 0.0-0.15 is resting, 0.3+ is full reach
+    const minReach = 0.0;
+    const maxReach = 0.35;
+    final normalized =
+        ((reachDistance - minReach) / (maxReach - minReach)).clamp(0.0, 1.0);
+
+    return normalized;
+  }
+
+  /// V-sit-and-reach signal: similar to sit-and-reach with leg spread consideration
+  double? _computeVSitAndReachSignal(List<Keypoint> keypoints) {
+    final leftWrist = _findKeypoint(keypoints, KeypointNames.leftWrist);
+    final rightWrist = _findKeypoint(keypoints, KeypointNames.rightWrist);
+    final leftHip = _findKeypoint(keypoints, KeypointNames.leftHip);
+    final rightHip = _findKeypoint(keypoints, KeypointNames.rightHip);
+    final leftKnee = _findKeypoint(keypoints, KeypointNames.leftKnee);
+    final rightKnee = _findKeypoint(keypoints, KeypointNames.rightKnee);
+
+    // Need at least wrists and hips
+    if ((leftWrist == null && rightWrist == null) ||
+        (leftHip == null && rightHip == null)) {
+      return null;
+    }
+
+    // Calculate average wrist and hip positions
+    final wristX = leftWrist != null && rightWrist != null
+        ? (leftWrist.x + rightWrist.x) / 2
+        : (leftWrist?.x ?? rightWrist!.x);
+
+    final hipX = leftHip != null && rightHip != null
+        ? (leftHip.x + rightHip.x) / 2
+        : (leftHip?.x ?? rightHip!.x);
+
+    // Calculate forward reach distance
+    final reachDistance = (wristX - hipX).abs();
+
+    // Optional: factor in leg spread for V-sit-and-reach
+    double legSpreadBonus = 0.0;
+    if (leftKnee != null && rightKnee != null && leftHip != null) {
+      final legSpreadAngle = _calculateAngle(leftKnee, leftHip, rightKnee);
+      // Wider spread (80-120°) adds bonus to reach signal
+      if (legSpreadAngle >= 80 && legSpreadAngle <= 120) {
+        legSpreadBonus = 0.1;
+      }
+    }
+
+    // Normalize: 0.0-0.15 is resting, 0.3+ is full reach
+    const minReach = 0.0;
+    const maxReach = 0.35;
+    final normalized =
+        ((reachDistance - minReach) / (maxReach - minReach) + legSpreadBonus)
+            .clamp(0.0, 1.0);
 
     return normalized;
   }

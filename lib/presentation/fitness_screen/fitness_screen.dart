@@ -11,11 +11,11 @@ import '../../widgets/custom_bottom_bar.dart';
 import '../../models/keypoint.dart';
 import '../../models/rep_counter.dart';
 import '../../models/video_frame.dart';
-import '../../models/running_form_analyzer.dart';
+import '../../models/flexibility_form_analyzer.dart';
 import '../../services/camera_service.dart';
 import '../../services/video_service.dart';
 import '../../services/pose_estimator.dart';
-import '../../services/running_metrics_calculator.dart';
+import '../../services/flexibility_metrics_calculator.dart';
 import '../../widgets/pose_painter.dart';
 
 enum AppMode { camera, video, processing, exporting }
@@ -41,13 +41,19 @@ class _FitnessScreenState extends State<FitnessScreen> {
   ExerciseType _selectedExercise = ExerciseType.pushUp;
   RepCounter? _repCounter;
 
-  // Running analysis state
-  RunningFormAnalyzer? _runningAnalyzer;
-  RunningMetricsCalculator? _metricsCalculator;
-  RunningFormMetrics? _currentFormMetrics;
-  RunningMetrics? _currentRunMetrics;
-  RunType _selectedRunType = RunType.longDistance;
-  double _runnerHeight = 1.75; // meters
+  // Flexibility analysis state
+  FlexibilityFormAnalyzer? _flexibilityAnalyzer;
+  FlexibilityMetricsCalculator? _flexibilityCalculator;
+  FlexibilityFormMetrics? _currentFlexibilityForm;
+  FlexibilityMetrics? _currentFlexibilityMetrics;
+  FlexibilityTestType _selectedFlexibilityTest =
+      FlexibilityTestType.sitAndReach;
+  double _participantHeight = 1.75; // meters
+  bool _baselineSet = false;
+
+  // Rep counter for flexibility exercises
+  RepCounter? _flexibilityRepCounter;
+  int _flexibilityRepCount = 0;
 
   List<Keypoint> _currentKeypoints = [];
   List<Keypoint> _smoothedKeypoints = [];
@@ -72,10 +78,21 @@ class _FitnessScreenState extends State<FitnessScreen> {
     try {
       await _poseEstimator.initialize();
       _repCounter = RepCounter(exerciseType: _selectedExercise);
-      _runningAnalyzer = RunningFormAnalyzer(runType: _selectedRunType);
-      _metricsCalculator = RunningMetricsCalculator(
-        runnerHeight: _runnerHeight,
-        videoFps: 30.0,
+      _flexibilityAnalyzer = FlexibilityFormAnalyzer(
+        testType: _selectedFlexibilityTest,
+      );
+      _flexibilityCalculator = FlexibilityMetricsCalculator(
+        testType: _selectedFlexibilityTest,
+        participantHeight: _participantHeight,
+      );
+      // Initialize rep counter for flexibility exercises
+      _flexibilityRepCounter = RepCounter(
+        exerciseType:
+            _selectedFlexibilityTest == FlexibilityTestType.sitAndReach
+                ? ExerciseType.sitAndReach
+                : ExerciseType.vSitAndReach,
+        upThreshold: 0.7,
+        downThreshold: 0.3,
       );
       setState(() {});
     } catch (e) {
@@ -138,15 +155,34 @@ class _FitnessScreenState extends State<FitnessScreen> {
 
       final timestamp = DateTime.now().millisecondsSinceEpoch;
 
-      // Update rep counter or running analyzer based on exercise type
+      // Update rep counter or flexibility analyzer based on exercise type
       if (_selectedExercise == ExerciseType.running) {
-        if (_runningAnalyzer != null) {
-          _currentFormMetrics =
-              _runningAnalyzer!.analyzeFrame(_smoothedKeypoints, timestamp);
+        // Running pose estimation removed - keep section empty
+      } else if (_selectedExercise == ExerciseType.sitAndReach ||
+          _selectedExercise == ExerciseType.vSitAndReach) {
+        // Handle flexibility exercises
+        if (!_baselineSet) {
+          // Set baseline on first valid frame
+          if (_flexibilityCalculator != null) {
+            _flexibilityCalculator!.setBaseline(_smoothedKeypoints);
+            _baselineSet = true;
+          }
         }
-        if (_metricsCalculator != null) {
-          _metricsCalculator!.addFrame(_smoothedKeypoints, timestamp);
-          _currentRunMetrics = _metricsCalculator!.calculateMetrics();
+
+        // Update rep counter for flexibility exercises
+        if (_flexibilityRepCounter != null) {
+          _flexibilityRepCounter!.update(_smoothedKeypoints, timestamp);
+          _flexibilityRepCount = _flexibilityRepCounter!.repCount;
+        }
+
+        if (_flexibilityAnalyzer != null) {
+          _currentFlexibilityForm =
+              _flexibilityAnalyzer!.analyzeFrame(_smoothedKeypoints, timestamp);
+        }
+        if (_flexibilityCalculator != null) {
+          _flexibilityCalculator!.addFrame(_smoothedKeypoints);
+          _currentFlexibilityMetrics =
+              _flexibilityCalculator!.calculateMetrics();
         }
       } else {
         if (_repCounter != null) {
@@ -197,6 +233,10 @@ class _FitnessScreenState extends State<FitnessScreen> {
 
     try {
       _repCounter?.reset();
+      _flexibilityRepCounter?.reset();
+      _flexibilityAnalyzer?.reset();
+      _flexibilityCalculator?.reset();
+      _baselineSet = false;
 
       final tempDir = await getTemporaryDirectory();
 
@@ -270,22 +310,44 @@ class _FitnessScreenState extends State<FitnessScreen> {
             }),
           );
 
-          // Update rep counter or running analyzer and store results
+          // Update rep counter or flexibility analyzer and store results
           for (final result in batchKeypoints) {
             if (_selectedExercise == ExerciseType.running) {
-              // Running analysis
-              if (_runningAnalyzer != null) {
-                _currentFormMetrics = _runningAnalyzer!
+              // Running pose estimation removed - keep section empty
+            } else if (_selectedExercise == ExerciseType.sitAndReach ||
+                _selectedExercise == ExerciseType.vSitAndReach) {
+              // Flexibility analysis
+              if (!_baselineSet && result.keypoints.isNotEmpty) {
+                // Set baseline on first valid frame
+                if (_flexibilityCalculator != null) {
+                  _flexibilityCalculator!.setBaseline(result.keypoints);
+                  _baselineSet = true;
+                }
+              }
+
+              // Update rep counter for flexibility exercises
+              if (_flexibilityRepCounter != null) {
+                _flexibilityRepCounter!
+                    .update(result.keypoints, result.timestamp);
+                _flexibilityRepCount = _flexibilityRepCounter!.repCount;
+              }
+
+              // Update flexibility form analyzer
+              if (_flexibilityAnalyzer != null) {
+                _currentFlexibilityForm = _flexibilityAnalyzer!
                     .analyzeFrame(result.keypoints, result.timestamp);
               }
-              if (_metricsCalculator != null) {
-                _metricsCalculator!
-                    .addFrame(result.keypoints, result.timestamp);
+
+              // Update flexibility metrics calculator
+              if (_flexibilityCalculator != null) {
+                _flexibilityCalculator!.addFrame(result.keypoints);
               }
             } else {
-              // Rep counting for other exercises
+              // Standard rep counting
               _repCounter?.update(result.keypoints, result.timestamp);
             }
+
+            // Store keypoints for export
             _videoFrameKeypoints[result.timestamp] = result.keypoints;
           }
         }
@@ -293,8 +355,7 @@ class _FitnessScreenState extends State<FitnessScreen> {
         processedCount += batchFramePaths.length;
         if (mounted) {
           setState(() {
-            _exportProgress =
-                0.5 + (processedCount / framesToProcess.length) * 0.5;
+            _exportProgress = (processedCount / framesToProcess.length) * 0.5;
           });
         }
       }
@@ -302,10 +363,11 @@ class _FitnessScreenState extends State<FitnessScreen> {
       await _videoService
           .cleanupFrameDirectory('${tempDir.path}/video_frames_*');
 
-      // Calculate final metrics for running
-      if (_selectedExercise == ExerciseType.running &&
-          _metricsCalculator != null) {
-        _currentRunMetrics = _metricsCalculator!.calculateMetrics();
+      // Calculate final metrics for flexibility exercises
+      if ((_selectedExercise == ExerciseType.sitAndReach ||
+              _selectedExercise == ExerciseType.vSitAndReach) &&
+          _flexibilityCalculator != null) {
+        _currentFlexibilityMetrics = _flexibilityCalculator!.calculateMetrics();
       }
 
       setState(() {
@@ -314,19 +376,27 @@ class _FitnessScreenState extends State<FitnessScreen> {
       });
 
       if (_selectedExercise == ExerciseType.running) {
-        // Show running-specific results
-        final formQuality =
-            _currentFormMetrics?.overallQuality.toString().split('.').last ??
-                'Unknown';
-        final pace = _formatPace(_currentRunMetrics?.averagePace ?? 0);
-        final speed =
-            _currentRunMetrics?.averageSpeed.toStringAsFixed(1) ?? '0';
+        // Running pose estimation removed - keep section empty
+      } else if (_selectedExercise == ExerciseType.sitAndReach ||
+          _selectedExercise == ExerciseType.vSitAndReach) {
+        // Show flexibility-specific results
+        final formQuality = _currentFlexibilityForm?.overallQuality
+                .toString()
+                .split('.')
+                .last ??
+            'Unknown';
+        final maxReach =
+            _currentFlexibilityMetrics?.maxReachDistance.toStringAsFixed(1) ??
+                '0';
+        final score =
+            _currentFlexibilityMetrics?.flexibilityScore.toStringAsFixed(0) ??
+                '0';
 
-        _showRunningResults(
+        _showFlexibilityResults(
           formQuality: formQuality,
-          pace: pace,
-          speed: speed,
-          distance: _currentRunMetrics?.totalDistance.toStringAsFixed(1) ?? '0',
+          maxReach: maxReach,
+          score: score,
+          reps: _flexibilityRepCount,
         );
       } else {
         _showSuccess(
@@ -481,14 +551,23 @@ class _FitnessScreenState extends State<FitnessScreen> {
                   setState(() {
                     _selectedExercise = value;
                     if (value == ExerciseType.running) {
-                      _runningAnalyzer =
-                          RunningFormAnalyzer(runType: _selectedRunType);
-                      _metricsCalculator = RunningMetricsCalculator(
-                        runnerHeight: _runnerHeight,
-                        videoFps: 30.0,
+                      // Running pose estimation removed - keep section empty
+                    } else if (value == ExerciseType.sitAndReach ||
+                        value == ExerciseType.vSitAndReach) {
+                      _selectedFlexibilityTest =
+                          value == ExerciseType.sitAndReach
+                              ? FlexibilityTestType.sitAndReach
+                              : FlexibilityTestType.vSitAndReach;
+                      _flexibilityAnalyzer = FlexibilityFormAnalyzer(
+                        testType: _selectedFlexibilityTest,
                       );
-                      _currentFormMetrics = null;
-                      _currentRunMetrics = null;
+                      _flexibilityCalculator = FlexibilityMetricsCalculator(
+                        testType: _selectedFlexibilityTest,
+                        participantHeight: _participantHeight,
+                      );
+                      _currentFlexibilityForm = null;
+                      _currentFlexibilityMetrics = null;
+                      _baselineSet = false;
                     } else {
                       _repCounter = RepCounter(exerciseType: value);
                     }
@@ -497,14 +576,27 @@ class _FitnessScreenState extends State<FitnessScreen> {
               },
             ),
           ),
-          // Running settings button (only show when running is selected)
-          if (_selectedExercise == ExerciseType.running)
+          // Flexibility settings button (only show when flexibility test is selected)
+          if (_selectedExercise == ExerciseType.sitAndReach ||
+              _selectedExercise == ExerciseType.vSitAndReach)
             Padding(
               padding: const EdgeInsets.only(right: 8),
               child: IconButton(
                 icon: Icon(Icons.settings, color: theme.colorScheme.primary),
-                onPressed: _showRunningSettings,
-                tooltip: 'Running Settings',
+                onPressed: _showFlexibilitySettings,
+                tooltip: 'Flexibility Settings',
+              ),
+            ),
+          // Running history button (only show when running is selected)
+          if (_selectedExercise == ExerciseType.running)
+            Padding(
+              padding: const EdgeInsets.only(right: 8),
+              child: IconButton(
+                icon: Icon(Icons.history, color: theme.colorScheme.primary),
+                onPressed: () {
+                  Navigator.pushNamed(context, '/running-history-screen');
+                },
+                tooltip: 'Running History',
               ),
             ),
         ],
@@ -614,17 +706,18 @@ class _FitnessScreenState extends State<FitnessScreen> {
         Positioned.fill(
           child: PoseOverlay(
             keypoints: _smoothedKeypoints,
-            repCount: _selectedExercise == ExerciseType.running
+            repCount: _selectedExercise == ExerciseType.running ||
+                    _selectedExercise == ExerciseType.sitAndReach ||
+                    _selectedExercise == ExerciseType.vSitAndReach
                 ? null
                 : _repCounter?.repCount,
             exerciseType: _selectedExercise.toString().split('.').last,
           ),
         ),
-        // Display running metrics overlay for running
-        if (_selectedExercise == ExerciseType.running)
-          _buildRunningMetricsOverlay(),
         // Modern rep counter display for other exercises
-        if (_selectedExercise != ExerciseType.running)
+        if (_selectedExercise != ExerciseType.running &&
+            _selectedExercise != ExerciseType.sitAndReach &&
+            _selectedExercise != ExerciseType.vSitAndReach)
           Positioned(
             top: 24,
             left: 24,
@@ -798,7 +891,11 @@ class _FitnessScreenState extends State<FitnessScreen> {
             ),
           ),
         ),
-        if (_videoFrameKeypoints.isNotEmpty)
+        // Rep counter overlay for standard exercises
+        if (_videoFrameKeypoints.isNotEmpty &&
+            _selectedExercise != ExerciseType.running &&
+            _selectedExercise != ExerciseType.sitAndReach &&
+            _selectedExercise != ExerciseType.vSitAndReach)
           Positioned(
             top: 24,
             left: 24,
@@ -1196,43 +1293,47 @@ class _FitnessScreenState extends State<FitnessScreen> {
   }
 
   /// Show running settings dialog
-  void _showRunningSettings() {
+  void _showFlexibilitySettings() {
     showDialog(
       context: context,
       builder: (context) {
-        RunType tempRunType = _selectedRunType;
-        double tempHeight = _runnerHeight;
+        FlexibilityTestType tempTestType = _selectedFlexibilityTest;
+        double tempHeight = _participantHeight;
 
         return StatefulBuilder(
           builder: (context, setDialogState) {
             return AlertDialog(
-              title: const Text('Running Settings'),
+              title: const Text('Flexibility Test Settings'),
               content: Column(
                 mainAxisSize: MainAxisSize.min,
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  // Run type selector
-                  const Text('Run Type:',
+                  // Test type selector
+                  const Text('Test Type:',
                       style: TextStyle(fontWeight: FontWeight.bold)),
                   const SizedBox(height: 8),
-                  DropdownButton<RunType>(
-                    value: tempRunType,
+                  DropdownButton<FlexibilityTestType>(
+                    value: tempTestType,
                     isExpanded: true,
-                    items: RunType.values.map((type) {
+                    items: FlexibilityTestType.values.map((type) {
                       return DropdownMenuItem(
                         value: type,
-                        child: Text(type.toString().split('.').last),
+                        child: Text(
+                          type == FlexibilityTestType.sitAndReach
+                              ? 'Sit and Reach'
+                              : 'V Sit and Reach',
+                        ),
                       );
                     }).toList(),
                     onChanged: (value) {
                       if (value != null) {
-                        setDialogState(() => tempRunType = value);
+                        setDialogState(() => tempTestType = value);
                       }
                     },
                   ),
                   const SizedBox(height: 16),
-                  // Runner height slider
-                  const Text('Runner Height:',
+                  // Participant height slider
+                  const Text('Participant Height:',
                       style: TextStyle(fontWeight: FontWeight.bold)),
                   const SizedBox(height: 8),
                   Text('${tempHeight.toStringAsFixed(2)} meters'),
@@ -1256,14 +1357,24 @@ class _FitnessScreenState extends State<FitnessScreen> {
                 ElevatedButton(
                   onPressed: () {
                     setState(() {
-                      _selectedRunType = tempRunType;
-                      _runnerHeight = tempHeight;
-                      _runningAnalyzer =
-                          RunningFormAnalyzer(runType: _selectedRunType);
-                      _metricsCalculator = RunningMetricsCalculator(
-                        runnerHeight: _runnerHeight,
-                        videoFps: 30.0,
+                      _selectedFlexibilityTest = tempTestType;
+                      _participantHeight = tempHeight;
+                      _flexibilityAnalyzer = FlexibilityFormAnalyzer(
+                        testType: _selectedFlexibilityTest,
                       );
+                      _flexibilityCalculator = FlexibilityMetricsCalculator(
+                        testType: _selectedFlexibilityTest,
+                        participantHeight: _participantHeight,
+                      );
+                      _baselineSet = false;
+                      _currentFlexibilityForm = null;
+                      _currentFlexibilityMetrics = null;
+
+                      // Update exercise type to match selected test
+                      _selectedExercise = _selectedFlexibilityTest ==
+                              FlexibilityTestType.sitAndReach
+                          ? ExerciseType.sitAndReach
+                          : ExerciseType.vSitAndReach;
                     });
                     Navigator.pop(context);
                   },
@@ -1277,12 +1388,12 @@ class _FitnessScreenState extends State<FitnessScreen> {
     );
   }
 
-  /// Show running analysis results dialog
-  void _showRunningResults({
+  /// Show flexibility analysis results dialog
+  void _showFlexibilityResults({
     required String formQuality,
-    required String pace,
-    required String speed,
-    required String distance,
+    required String maxReach,
+    required String score,
+    required int reps,
   }) {
     final theme = Theme.of(context);
     final isGoodForm = formQuality.toLowerCase() == 'excellent' ||
@@ -1294,145 +1405,231 @@ class _FitnessScreenState extends State<FitnessScreen> {
         title: Row(
           children: [
             Icon(
-              Icons.directions_run,
+              Icons.accessibility_new,
               color: theme.colorScheme.primary,
               size: 28,
             ),
             const SizedBox(width: 12),
-            const Text('Running Analysis Complete'),
+            Text(_selectedFlexibilityTest == FlexibilityTestType.sitAndReach
+                ? 'Sit & Reach Analysis'
+                : 'V Sit & Reach Analysis'),
           ],
         ),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            // Form Quality Section
-            Container(
-              padding: const EdgeInsets.all(16),
-              decoration: BoxDecoration(
-                color: isGoodForm
-                    ? Colors.green.withValues(alpha: 0.1)
-                    : Colors.orange.withValues(alpha: 0.1),
-                borderRadius: BorderRadius.circular(12),
-                border: Border.all(
+        content: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // Form Quality Section
+              Container(
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
                   color: isGoodForm
-                      ? Colors.green.withValues(alpha: 0.3)
-                      : Colors.orange.withValues(alpha: 0.3),
-                  width: 2,
+                      ? Colors.green.withValues(alpha: 0.1)
+                      : Colors.orange.withValues(alpha: 0.1),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(
+                    color: isGoodForm
+                        ? Colors.green.withValues(alpha: 0.3)
+                        : Colors.orange.withValues(alpha: 0.3),
+                    width: 2,
+                  ),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Icon(
+                          isGoodForm
+                              ? Icons.check_circle_outline
+                              : Icons.warning_amber_rounded,
+                          color: isGoodForm ? Colors.green : Colors.orange,
+                          size: 24,
+                        ),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: Text(
+                            'Form Quality: $formQuality',
+                            style: TextStyle(
+                              fontSize: 16,
+                              fontWeight: FontWeight.bold,
+                              color: isGoodForm
+                                  ? Colors.green[700]
+                                  : Colors.orange[700],
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      isGoodForm
+                          ? 'Your flexibility form looks great! Keep it up.'
+                          : 'Your form could use some improvement. Check the recommendations below.',
+                      style: TextStyle(
+                        fontSize: 13,
+                        color:
+                            theme.colorScheme.onSurface.withValues(alpha: 0.7),
+                      ),
+                    ),
+                  ],
                 ),
               ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    children: [
-                      Icon(
-                        isGoodForm
-                            ? Icons.check_circle_outline
-                            : Icons.warning_amber_rounded,
-                        color: isGoodForm ? Colors.green : Colors.orange,
-                        size: 24,
-                      ),
-                      const SizedBox(width: 8),
-                      Text(
-                        'Running Form: $formQuality',
-                        style: TextStyle(
-                          fontSize: 16,
-                          fontWeight: FontWeight.bold,
-                          color: isGoodForm
-                              ? Colors.green[700]
-                              : Colors.orange[700],
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 8),
-                  Text(
-                    isGoodForm
-                        ? 'Your running form looks great! Keep it up.'
-                        : 'Your form could use some improvement. Check the recommendations.',
-                    style: TextStyle(
-                      fontSize: 13,
-                      color: theme.colorScheme.onSurface.withValues(alpha: 0.7),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            const SizedBox(height: 16),
-
-            // Metrics Section
-            const Text(
-              'Performance Metrics',
-              style: TextStyle(
-                fontSize: 14,
-                fontWeight: FontWeight.bold,
-              ),
-            ),
-            const SizedBox(height: 12),
-
-            _buildResultRow(
-              icon: Icons.speed,
-              label: 'Speed',
-              value: '$speed km/h',
-              theme: theme,
-            ),
-            const SizedBox(height: 8),
-            _buildResultRow(
-              icon: Icons.timer,
-              label: 'Pace',
-              value: '$pace /km',
-              theme: theme,
-            ),
-            const SizedBox(height: 8),
-            _buildResultRow(
-              icon: Icons.straighten,
-              label: 'Distance',
-              value: '${distance}m',
-              theme: theme,
-            ),
-
-            if (_currentFormMetrics != null &&
-                _currentFormMetrics!.recommendations.isNotEmpty &&
-                _currentFormMetrics!.recommendations.first !=
-                    'Keep running to collect data') ...[
               const SizedBox(height: 16),
+
+              // Metrics Section - Tile Layout
               const Text(
-                'Recommendations',
+                'Performance Metrics',
                 style: TextStyle(
                   fontSize: 14,
                   fontWeight: FontWeight.bold,
                 ),
               ),
-              const SizedBox(height: 8),
-              ..._currentFormMetrics!.recommendations.take(3).map(
-                    (rec) => Padding(
-                      padding: const EdgeInsets.only(bottom: 6),
-                      child: Row(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Icon(
-                            Icons.arrow_right,
-                            size: 20,
-                            color: theme.colorScheme.primary,
-                          ),
-                          const SizedBox(width: 4),
-                          Expanded(
-                            child: Text(
-                              rec,
-                              style: TextStyle(
-                                fontSize: 12,
-                                color: theme.colorScheme.onSurface
-                                    .withValues(alpha: 0.8),
-                              ),
-                            ),
-                          ),
-                        ],
+              const SizedBox(height: 12),
+
+              // Metrics Grid
+              Column(
+                children: [
+                  Row(
+                    children: [
+                      Expanded(
+                        child: _buildMetricTile(
+                          icon: Icons.repeat,
+                          label: 'Repetitions',
+                          value: '$reps',
+                          unit: 'reps',
+                          theme: theme,
+                        ),
                       ),
-                    ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: _buildMetricTile(
+                          icon: Icons.straighten,
+                          label: 'Max Reach',
+                          value: maxReach,
+                          unit: 'cm',
+                          theme: theme,
+                        ),
+                      ),
+                    ],
                   ),
+                  const SizedBox(height: 12),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: _buildMetricTile(
+                          icon: Icons.star,
+                          label: 'Score',
+                          value: score,
+                          unit: '/100',
+                          theme: theme,
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: _currentFlexibilityMetrics != null
+                            ? _buildMetricTile(
+                                icon: Icons.grade,
+                                label: 'Rating',
+                                value: _currentFlexibilityMetrics!.rating,
+                                unit: '',
+                                theme: theme,
+                              )
+                            : const SizedBox.shrink(),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+
+              // Issues Section - Collapsible
+              if (_currentFlexibilityForm != null &&
+                  _currentFlexibilityForm!.issues.isNotEmpty) ...[
+                const SizedBox(height: 16),
+                _CollapsibleSection(
+                  title: 'Detected Issues',
+                  icon: Icons.warning_amber,
+                  iconColor: Colors.orangeAccent,
+                  backgroundColor: Colors.orange.withValues(alpha: 0.1),
+                  borderColor: Colors.orangeAccent.withValues(alpha: 0.3),
+                  initiallyExpanded: false,
+                  children: _currentFlexibilityForm!.issues
+                      .map(
+                        (issue) => Padding(
+                          padding: const EdgeInsets.only(bottom: 6),
+                          child: Row(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              const Text(
+                                '\u2022',
+                                style: TextStyle(
+                                  fontSize: 14,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                              const SizedBox(width: 8),
+                              Expanded(
+                                child: Text(
+                                  issue,
+                                  style: TextStyle(
+                                    fontSize: 12,
+                                    color: theme.colorScheme.onSurface
+                                        .withValues(alpha: 0.8),
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      )
+                      .toList(),
+                ),
+              ],
+
+              // Recommendations Section - Collapsible
+              if (_currentFlexibilityForm != null &&
+                  _currentFlexibilityForm!.recommendations.isNotEmpty) ...[
+                const SizedBox(height: 16),
+                _CollapsibleSection(
+                  title: 'How to Improve',
+                  icon: Icons.lightbulb_outline,
+                  iconColor: Colors.greenAccent,
+                  backgroundColor: Colors.green.withValues(alpha: 0.1),
+                  borderColor: Colors.greenAccent.withValues(alpha: 0.3),
+                  initiallyExpanded: false,
+                  children: _currentFlexibilityForm!.recommendations
+                      .map(
+                        (rec) => Padding(
+                          padding: const EdgeInsets.only(bottom: 6),
+                          child: Row(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              const Icon(
+                                Icons.arrow_forward,
+                                size: 14,
+                                color: Colors.greenAccent,
+                              ),
+                              const SizedBox(width: 8),
+                              Expanded(
+                                child: Text(
+                                  rec,
+                                  style: TextStyle(
+                                    fontSize: 12,
+                                    color: theme.colorScheme.onSurface
+                                        .withValues(alpha: 0.8),
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      )
+                      .toList(),
+                ),
+              ],
             ],
-          ],
+          ),
         ),
         actions: [
           TextButton(
@@ -1540,15 +1737,14 @@ class _FitnessScreenState extends State<FitnessScreen> {
     );
   }
 
-  /// Build running metrics overlay display
-  Widget _buildRunningMetricsOverlay() {
-    if (_currentRunMetrics == null && _currentFormMetrics == null) {
+  Widget _buildFlexibilityMetricsOverlay() {
+    if (_currentFlexibilityMetrics == null && _currentFlexibilityForm == null) {
       return const SizedBox.shrink();
     }
 
     final theme = Theme.of(context);
-    final metrics = _currentRunMetrics;
-    final formMetrics = _currentFormMetrics;
+    final metrics = _currentFlexibilityMetrics;
+    final formMetrics = _currentFlexibilityForm;
 
     return Positioned(
       top: 24,
@@ -1559,8 +1755,8 @@ class _FitnessScreenState extends State<FitnessScreen> {
         decoration: BoxDecoration(
           gradient: LinearGradient(
             colors: [
-              theme.colorScheme.primary.withValues(alpha: 0.95),
-              theme.colorScheme.primaryContainer.withValues(alpha: 0.95),
+              Colors.purple.withValues(alpha: 0.95),
+              Colors.deepPurple.withValues(alpha: 0.95),
             ],
           ),
           borderRadius: BorderRadius.circular(16),
@@ -1576,22 +1772,57 @@ class _FitnessScreenState extends State<FitnessScreen> {
           crossAxisAlignment: CrossAxisAlignment.start,
           mainAxisSize: MainAxisSize.min,
           children: [
-            // Header
+            // Header with rep counter
             Row(
               children: [
                 Icon(
-                  Icons.directions_run,
-                  color: theme.colorScheme.onPrimary,
+                  Icons.accessibility_new,
+                  color: Colors.white,
                   size: 24,
                 ),
                 const SizedBox(width: 8),
-                Text(
-                  'RUNNING ANALYSIS',
-                  style: TextStyle(
-                    color: theme.colorScheme.onPrimary,
-                    fontSize: 18,
-                    fontWeight: FontWeight.bold,
-                    letterSpacing: 1.2,
+                Expanded(
+                  child: Text(
+                    _selectedFlexibilityTest == FlexibilityTestType.sitAndReach
+                        ? 'SIT & REACH'
+                        : 'V SIT & REACH',
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 18,
+                      fontWeight: FontWeight.bold,
+                      letterSpacing: 1.2,
+                    ),
+                  ),
+                ),
+                Container(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                  decoration: BoxDecoration(
+                    color: Colors.white.withValues(alpha: 0.2),
+                    borderRadius: BorderRadius.circular(20),
+                    border: Border.all(
+                      color: Colors.white.withValues(alpha: 0.5),
+                      width: 2,
+                    ),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      const Icon(
+                        Icons.repeat,
+                        color: Colors.white,
+                        size: 18,
+                      ),
+                      const SizedBox(width: 6),
+                      Text(
+                        '$_flexibilityRepCount',
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 20,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ],
                   ),
                 ),
               ],
@@ -1602,22 +1833,22 @@ class _FitnessScreenState extends State<FitnessScreen> {
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceAround,
                 children: [
-                  _buildMetricItem(
+                  _buildFlexibilityMetricItem(
                     icon: Icons.straighten,
-                    label: 'Distance',
-                    value: '${metrics.totalDistance.toStringAsFixed(1)}m',
+                    label: 'Reach',
+                    value: '${metrics.reachDistance.toStringAsFixed(1)} cm',
                     theme: theme,
                   ),
-                  _buildMetricItem(
-                    icon: Icons.speed,
-                    label: 'Speed',
-                    value: '${metrics.averageSpeed.toStringAsFixed(1)} km/h',
+                  _buildFlexibilityMetricItem(
+                    icon: Icons.trending_up,
+                    label: 'Max Reach',
+                    value: '${metrics.maxReachDistance.toStringAsFixed(1)} cm',
                     theme: theme,
                   ),
-                  _buildMetricItem(
-                    icon: Icons.timer,
-                    label: 'Pace',
-                    value: _formatPace(metrics.averagePace),
+                  _buildFlexibilityMetricItem(
+                    icon: Icons.star,
+                    label: 'Score',
+                    value: '${metrics.flexibilityScore.toStringAsFixed(0)}/100',
                     theme: theme,
                   ),
                 ],
@@ -1626,17 +1857,17 @@ class _FitnessScreenState extends State<FitnessScreen> {
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceAround,
                 children: [
-                  _buildMetricItem(
-                    icon: Icons.directions_run,
-                    label: 'Cadence',
-                    value:
-                        '${(_metricsCalculator?.calculateCadence() ?? 0).toStringAsFixed(0)} spm',
+                  _buildFlexibilityMetricItem(
+                    icon: Icons.grade,
+                    label: 'Rating',
+                    value: metrics.rating,
                     theme: theme,
                   ),
-                  _buildMetricItem(
-                    icon: Icons.bolt,
-                    label: 'Max Speed',
-                    value: '${metrics.maxSpeed.toStringAsFixed(1)} km/h',
+                  _buildFlexibilityMetricItem(
+                    icon: Icons.accessibility,
+                    label: 'Hamstring',
+                    value:
+                        '${metrics.hamstringFlexibility.toStringAsFixed(0)}°',
                     theme: theme,
                   ),
                 ],
@@ -1645,64 +1876,241 @@ class _FitnessScreenState extends State<FitnessScreen> {
             // Form Quality
             if (formMetrics != null) ...[
               const SizedBox(height: 12),
-              Divider(
-                  color: theme.colorScheme.onPrimary.withValues(alpha: 0.3)),
-              const SizedBox(height: 8),
+              const Divider(color: Colors.white54, height: 1),
+              const SizedBox(height: 12),
               Row(
                 children: [
                   Icon(
-                    _getFormQualityIcon(formMetrics.overallQuality),
-                    color: _getFormQualityColor(formMetrics.overallQuality),
+                    _getFlexibilityFormQualityIcon(formMetrics.overallQuality),
+                    color: _getFlexibilityFormQualityColor(
+                        formMetrics.overallQuality),
                     size: 20,
                   ),
                   const SizedBox(width: 8),
                   Text(
-                    'Form: ${formMetrics.overallQuality.toString().split('.').last.toUpperCase()}',
-                    style: TextStyle(
-                      color: theme.colorScheme.onPrimary,
+                    'Form Quality: ${formMetrics.overallQuality.name.toUpperCase()}',
+                    style: const TextStyle(
+                      color: Colors.white,
                       fontSize: 14,
                       fontWeight: FontWeight.w600,
                     ),
                   ),
-                  const SizedBox(width: 8),
+                  const Spacer(),
                   Text(
                     '${formMetrics.qualityScore.toStringAsFixed(0)}/100',
-                    style: TextStyle(
-                      color: theme.colorScheme.onPrimary.withValues(alpha: 0.8),
-                      fontSize: 12,
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 14,
+                      fontWeight: FontWeight.bold,
                     ),
                   ),
                 ],
               ),
-              if (formMetrics.issues.isNotEmpty &&
-                  formMetrics.issues.first != 'Analyzing...') ...[
-                const SizedBox(height: 8),
-                ...formMetrics.issues.take(2).map((issue) => Padding(
-                      padding: const EdgeInsets.only(top: 4),
-                      child: Row(
-                        children: [
-                          Icon(
-                            Icons.warning_amber_rounded,
-                            size: 14,
-                            color: Colors.orange[300],
+              // Multi-angle pose analysis section
+              const SizedBox(height: 12),
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: Colors.white.withValues(alpha: 0.15),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Row(
+                      children: [
+                        Icon(Icons.assessment, color: Colors.white, size: 16),
+                        SizedBox(width: 8),
+                        Text(
+                          'MULTI-ANGLE ANALYSIS',
+                          style: TextStyle(
+                            color: Colors.white,
+                            fontSize: 12,
+                            fontWeight: FontWeight.bold,
+                            letterSpacing: 0.5,
                           ),
-                          const SizedBox(width: 6),
-                          Expanded(
-                            child: Text(
-                              issue,
-                              style: TextStyle(
-                                color: theme.colorScheme.onPrimary
-                                    .withValues(alpha: 0.9),
-                                fontSize: 11,
-                              ),
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 8),
+                    _buildAngleAnalysisRow(
+                      'Front View',
+                      Icons.person,
+                      formMetrics.legSymmetry,
+                      'Leg alignment & symmetry',
+                    ),
+                    const SizedBox(height: 6),
+                    _buildAngleAnalysisRow(
+                      'Side View',
+                      Icons.switch_left,
+                      formMetrics.backAlignment,
+                      'Back posture & reach angle',
+                    ),
+                    const SizedBox(height: 6),
+                    _buildAngleAnalysisRow(
+                      'Legs',
+                      Icons.accessibility,
+                      formMetrics.kneeExtension,
+                      'Knee extension quality',
+                    ),
+                    const SizedBox(height: 6),
+                    _buildAngleAnalysisRow(
+                      'Upper Body',
+                      Icons.accessibility_new,
+                      formMetrics.shoulderRelaxation,
+                      'Shoulder & neck position',
+                    ),
+                  ],
+                ),
+              ),
+              // Issues section
+              if (formMetrics.issues.isNotEmpty) ...[
+                const SizedBox(height: 12),
+                Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: Colors.orange.withValues(alpha: 0.2),
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(
+                      color: Colors.orangeAccent.withValues(alpha: 0.5),
+                      width: 1,
+                    ),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Row(
+                        children: [
+                          Icon(Icons.warning_amber,
+                              color: Colors.orangeAccent, size: 16),
+                          SizedBox(width: 8),
+                          Text(
+                            'DETECTED ISSUES',
+                            style: TextStyle(
+                              color: Colors.white,
+                              fontSize: 12,
+                              fontWeight: FontWeight.bold,
+                              letterSpacing: 0.5,
                             ),
                           ),
                         ],
                       ),
-                    )),
+                      const SizedBox(height: 8),
+                      ...formMetrics.issues.map((issue) => Padding(
+                            padding: const EdgeInsets.only(bottom: 6),
+                            child: Row(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                const Text(
+                                  '\u2022',
+                                  style: TextStyle(
+                                    color: Colors.white,
+                                    fontSize: 14,
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                ),
+                                const SizedBox(width: 8),
+                                Expanded(
+                                  child: Text(
+                                    issue,
+                                    style: const TextStyle(
+                                      color: Colors.white,
+                                      fontSize: 11,
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          )),
+                    ],
+                  ),
+                ),
               ],
+              // Recommendations section
+              if (formMetrics.recommendations.isNotEmpty) ...[
+                const SizedBox(height: 12),
+                Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: Colors.green.withValues(alpha: 0.2),
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(
+                      color: Colors.greenAccent.withValues(alpha: 0.5),
+                      width: 1,
+                    ),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Row(
+                        children: [
+                          Icon(Icons.lightbulb_outline,
+                              color: Colors.greenAccent, size: 16),
+                          SizedBox(width: 8),
+                          Text(
+                            'HOW TO IMPROVE',
+                            style: TextStyle(
+                              color: Colors.white,
+                              fontSize: 12,
+                              fontWeight: FontWeight.bold,
+                              letterSpacing: 0.5,
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 8),
+                      ...formMetrics.recommendations.map((rec) => Padding(
+                            padding: const EdgeInsets.only(bottom: 6),
+                            child: Row(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                const Icon(
+                                  Icons.arrow_forward,
+                                  color: Colors.greenAccent,
+                                  size: 12,
+                                ),
+                                const SizedBox(width: 8),
+                                Expanded(
+                                  child: Text(
+                                    rec,
+                                    style: const TextStyle(
+                                      color: Colors.white,
+                                      fontSize: 11,
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          )),
+                    ],
+                  ),
+                ),
+              ],
+            ],
+            if (!_baselineSet) ...[
+              const SizedBox(height: 8),
+              Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: Colors.white.withValues(alpha: 0.2),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: const Row(
+                  children: [
+                    Icon(Icons.info_outline, color: Colors.white, size: 16),
+                    SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        'Get into starting position to set baseline',
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontSize: 12,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
             ],
           ],
         ),
@@ -1710,7 +2118,7 @@ class _FitnessScreenState extends State<FitnessScreen> {
     );
   }
 
-  Widget _buildMetricItem({
+  Widget _buildFlexibilityMetricItem({
     required IconData icon,
     required String label,
     required String value,
@@ -1719,22 +2127,20 @@ class _FitnessScreenState extends State<FitnessScreen> {
     return Column(
       mainAxisSize: MainAxisSize.min,
       children: [
-        Icon(icon,
-            color: theme.colorScheme.onPrimary.withValues(alpha: 0.8),
-            size: 16),
+        Icon(icon, color: Colors.white70, size: 16),
         const SizedBox(height: 4),
         Text(
           value,
-          style: TextStyle(
-            color: theme.colorScheme.onPrimary,
+          style: const TextStyle(
+            color: Colors.white,
             fontSize: 16,
             fontWeight: FontWeight.bold,
           ),
         ),
         Text(
           label,
-          style: TextStyle(
-            color: theme.colorScheme.onPrimary.withValues(alpha: 0.7),
+          style: const TextStyle(
+            color: Colors.white70,
             fontSize: 10,
           ),
         ),
@@ -1742,36 +2148,303 @@ class _FitnessScreenState extends State<FitnessScreen> {
     );
   }
 
-  String _formatPace(double paceMinPerKm) {
-    if (paceMinPerKm == 0 || paceMinPerKm.isInfinite) return '--:--';
-    final minutes = paceMinPerKm.floor();
-    final seconds = ((paceMinPerKm - minutes) * 60).round();
-    return '${minutes}:${seconds.toString().padLeft(2, '0')}';
-  }
-
-  IconData _getFormQualityIcon(FormQuality quality) {
+  IconData _getFlexibilityFormQualityIcon(FlexibilityFormQuality quality) {
     switch (quality) {
-      case FormQuality.excellent:
+      case FlexibilityFormQuality.excellent:
         return Icons.sentiment_very_satisfied;
-      case FormQuality.good:
+      case FlexibilityFormQuality.good:
         return Icons.sentiment_satisfied;
-      case FormQuality.fair:
+      case FlexibilityFormQuality.fair:
         return Icons.sentiment_neutral;
-      case FormQuality.poor:
+      case FlexibilityFormQuality.poor:
         return Icons.sentiment_dissatisfied;
     }
   }
 
-  Color _getFormQualityColor(FormQuality quality) {
+  Color _getFlexibilityFormQualityColor(FlexibilityFormQuality quality) {
     switch (quality) {
-      case FormQuality.excellent:
-        return Colors.green[400]!;
-      case FormQuality.good:
-        return Colors.lightGreen[400]!;
-      case FormQuality.fair:
-        return Colors.orange[400]!;
-      case FormQuality.poor:
-        return Colors.red[400]!;
+      case FlexibilityFormQuality.excellent:
+        return Colors.greenAccent;
+      case FlexibilityFormQuality.good:
+        return Colors.lightGreenAccent;
+      case FlexibilityFormQuality.fair:
+        return Colors.orangeAccent;
+      case FlexibilityFormQuality.poor:
+        return Colors.redAccent;
     }
+  }
+
+  /// Build angle analysis row for multi-angle pose analysis
+  Widget _buildAngleAnalysisRow(
+    String viewName,
+    IconData icon,
+    double score,
+    String description,
+  ) {
+    final percentage = (score * 100).toInt();
+    Color scoreColor;
+    String status;
+
+    if (score >= 0.85) {
+      scoreColor = Colors.greenAccent;
+      status = 'Excellent';
+    } else if (score >= 0.70) {
+      scoreColor = Colors.lightGreenAccent;
+      status = 'Good';
+    } else if (score >= 0.55) {
+      scoreColor = Colors.orangeAccent;
+      status = 'Fair';
+    } else {
+      scoreColor = Colors.redAccent;
+      status = 'Needs Work';
+    }
+
+    return Container(
+      padding: const EdgeInsets.all(8),
+      decoration: BoxDecoration(
+        color: Colors.black.withValues(alpha: 0.2),
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(icon, color: Colors.white70, size: 14),
+              const SizedBox(width: 6),
+              Text(
+                viewName,
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontSize: 11,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+              const Spacer(),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                decoration: BoxDecoration(
+                  color: scoreColor.withValues(alpha: 0.3),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(
+                    color: scoreColor,
+                    width: 1,
+                  ),
+                ),
+                child: Text(
+                  status,
+                  style: TextStyle(
+                    color: scoreColor,
+                    fontSize: 9,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 6),
+          Row(
+            children: [
+              Expanded(
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(4),
+                  child: LinearProgressIndicator(
+                    value: score,
+                    minHeight: 6,
+                    backgroundColor: Colors.white.withValues(alpha: 0.2),
+                    valueColor: AlwaysStoppedAnimation<Color>(scoreColor),
+                  ),
+                ),
+              ),
+              const SizedBox(width: 8),
+              Text(
+                '$percentage%',
+                style: TextStyle(
+                  color: scoreColor,
+                  fontSize: 11,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 4),
+          Text(
+            description,
+            style: const TextStyle(
+              color: Colors.white60,
+              fontSize: 9,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// Build a metric tile for the flexibility analysis
+  Widget _buildMetricTile({
+    required IconData icon,
+    required String label,
+    required String value,
+    required String unit,
+    required ThemeData theme,
+  }) {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: theme.colorScheme.primary.withValues(alpha: 0.1),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(
+          color: theme.colorScheme.primary.withValues(alpha: 0.2),
+          width: 1.5,
+        ),
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(
+            icon,
+            size: 28,
+            color: theme.colorScheme.primary,
+          ),
+          const SizedBox(height: 12),
+          Text(
+            label,
+            style: TextStyle(
+              fontSize: 11,
+              color: theme.colorScheme.onSurface.withValues(alpha: 0.6),
+            ),
+          ),
+          const SizedBox(height: 4),
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.end,
+            children: [
+              Flexible(
+                child: Text(
+                  value,
+                  style: const TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.bold,
+                  ),
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+              if (unit.isNotEmpty) ...[
+                const SizedBox(width: 4),
+                Padding(
+                  padding: const EdgeInsets.only(bottom: 2),
+                  child: Text(
+                    unit,
+                    style: TextStyle(
+                      fontSize: 12,
+                      color: theme.colorScheme.onSurface.withValues(alpha: 0.6),
+                    ),
+                  ),
+                ),
+              ],
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// Collapsible section widget for displaying issues and recommendations
+class _CollapsibleSection extends StatefulWidget {
+  final String title;
+  final IconData icon;
+  final Color iconColor;
+  final Color backgroundColor;
+  final Color borderColor;
+  final bool initiallyExpanded;
+  final List<Widget> children;
+
+  const _CollapsibleSection({
+    required this.title,
+    required this.icon,
+    required this.iconColor,
+    required this.backgroundColor,
+    required this.borderColor,
+    required this.initiallyExpanded,
+    required this.children,
+  });
+
+  @override
+  State<_CollapsibleSection> createState() => _CollapsibleSectionState();
+}
+
+class _CollapsibleSectionState extends State<_CollapsibleSection> {
+  late bool _isExpanded;
+
+  @override
+  void initState() {
+    super.initState();
+    _isExpanded = widget.initiallyExpanded;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+
+    return Container(
+      decoration: BoxDecoration(
+        color: widget.backgroundColor,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(
+          color: widget.borderColor,
+          width: 1,
+        ),
+      ),
+      child: Column(
+        children: [
+          InkWell(
+            onTap: () {
+              setState(() {
+                _isExpanded = !_isExpanded;
+              });
+            },
+            borderRadius: BorderRadius.circular(12),
+            child: Padding(
+              padding: const EdgeInsets.all(12),
+              child: Row(
+                children: [
+                  Icon(widget.icon, color: widget.iconColor, size: 18),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      widget.title,
+                      style: const TextStyle(
+                        fontSize: 14,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ),
+                  Icon(
+                    _isExpanded
+                        ? Icons.keyboard_arrow_up
+                        : Icons.keyboard_arrow_down,
+                    color: theme.colorScheme.onSurface.withValues(alpha: 0.6),
+                  ),
+                ],
+              ),
+            ),
+          ),
+          if (_isExpanded) ...[
+            Divider(
+              height: 1,
+              color: widget.borderColor,
+            ),
+            Padding(
+              padding: const EdgeInsets.all(12),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: widget.children,
+              ),
+            ),
+          ],
+        ],
+      ),
+    );
   }
 }
