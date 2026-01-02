@@ -20,7 +20,7 @@ class StravaAuthService {
   static const String _accessTokenKey = 'strava_access_token';
   static const String _refreshTokenKey = 'strava_refresh_token';
   static const String _expiresAtKey = 'strava_expires_at';
-  static const String _athleteIdKey = 'strava_athlete_id';
+  static const String _athleteIdKey = 'strava_athlete_id';  
 
   StravaAuthService() {
     _dio = Dio(BaseOptions(

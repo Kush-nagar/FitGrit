@@ -40,6 +40,7 @@ class _FitnessScreenState extends State<FitnessScreen> {
   AppMode _mode = AppMode.camera;
   ExerciseType _selectedExercise = ExerciseType.pushUp;
   RepCounter? _repCounter;
+  bool _showWorkoutSelection = true;
 
   // Flexibility analysis state
   FlexibilityFormAnalyzer? _flexibilityAnalyzer;
@@ -108,6 +109,28 @@ class _FitnessScreenState extends State<FitnessScreen> {
     _videoController?.dispose();
     _poseEstimator.dispose();
     super.dispose();
+  }
+
+  // Clear video analysis state
+  void _clearVideoAnalysisState() {
+    _videoController?.dispose();
+    _videoController = null;
+    _currentVideoPath = null;
+    _videoFrameKeypoints.clear();
+    _exportProgress = 0.0;
+    _currentKeypoints = [];
+    _smoothedKeypoints = [];
+    _mode = AppMode.camera;
+
+    // Reset rep counters
+    _repCounter?.reset();
+    _flexibilityRepCounter?.reset();
+    _flexibilityAnalyzer?.reset();
+    _flexibilityCalculator?.reset();
+    _baselineSet = false;
+    _flexibilityRepCount = 0;
+    _currentFlexibilityForm = null;
+    _currentFlexibilityMetrics = null;
   }
 
   // Camera Mode Functions
@@ -514,98 +537,120 @@ class _FitnessScreenState extends State<FitnessScreen> {
         variant: CustomAppBarVariant.standard,
         title: 'Fitness Tracker',
         centerTitle: false,
-        actions: [
-          // Modern exercise selector with card design
-          Container(
-            margin: const EdgeInsets.only(right: 12, top: 8, bottom: 8),
-            padding: const EdgeInsets.symmetric(horizontal: 12),
-            decoration: BoxDecoration(
-              color: theme.colorScheme.primaryContainer.withValues(alpha: 0.15),
-              borderRadius: BorderRadius.circular(12),
-              border: Border.all(
-                color: theme.colorScheme.primary.withValues(alpha: 0.3),
-                width: 1,
-              ),
-            ),
-            child: DropdownButton<ExerciseType>(
-              value: _selectedExercise,
-              dropdownColor: theme.colorScheme.surfaceContainerHighest,
-              underline: const SizedBox(),
-              icon: Icon(Icons.fitness_center,
-                  color: theme.colorScheme.primary, size: 18),
-              items: ExerciseType.values.map((type) {
-                return DropdownMenuItem(
-                  value: type,
-                  child: Text(
-                    type.toString().split('.').last.toUpperCase(),
-                    style: TextStyle(
-                      color: theme.colorScheme.onSurface,
-                      fontWeight: FontWeight.w600,
-                      fontSize: 13,
-                    ),
-                  ),
-                );
-              }).toList(),
-              onChanged: (value) {
-                if (value != null) {
-                  setState(() {
-                    _selectedExercise = value;
-                    if (value == ExerciseType.running) {
-                      // Running pose estimation removed - keep section empty
-                    } else if (value == ExerciseType.sitAndReach ||
-                        value == ExerciseType.vSitAndReach) {
-                      _selectedFlexibilityTest =
-                          value == ExerciseType.sitAndReach
-                              ? FlexibilityTestType.sitAndReach
-                              : FlexibilityTestType.vSitAndReach;
-                      _flexibilityAnalyzer = FlexibilityFormAnalyzer(
-                        testType: _selectedFlexibilityTest,
-                      );
-                      _flexibilityCalculator = FlexibilityMetricsCalculator(
-                        testType: _selectedFlexibilityTest,
-                        participantHeight: _participantHeight,
-                      );
-                      _currentFlexibilityForm = null;
-                      _currentFlexibilityMetrics = null;
-                      _baselineSet = false;
-                    } else {
-                      _repCounter = RepCounter(exerciseType: value);
-                    }
-                  });
-                }
-              },
-            ),
-          ),
-          // Flexibility settings button (only show when flexibility test is selected)
-          if (_selectedExercise == ExerciseType.sitAndReach ||
-              _selectedExercise == ExerciseType.vSitAndReach)
-            Padding(
-              padding: const EdgeInsets.only(right: 8),
-              child: IconButton(
-                icon: Icon(Icons.settings, color: theme.colorScheme.primary),
-                onPressed: _showFlexibilitySettings,
-                tooltip: 'Flexibility Settings',
-              ),
-            ),
-          // Running history button (only show when running is selected)
-          if (_selectedExercise == ExerciseType.running)
-            Padding(
-              padding: const EdgeInsets.only(right: 8),
-              child: IconButton(
-                icon: Icon(Icons.history, color: theme.colorScheme.primary),
+        leading: _showWorkoutSelection
+            ? null
+            : IconButton(
+                icon: Icon(Icons.arrow_back, color: theme.colorScheme.primary),
                 onPressed: () {
-                  Navigator.pushNamed(context, '/running-history-screen');
+                  setState(() {
+                    _showWorkoutSelection = true;
+                    // Stop camera if it's running
+                    if (_cameraService.isInitialized) {
+                      _stopCamera();
+                    }
+                    // Clear video analysis state
+                    _clearVideoAnalysisState();
+                  });
                 },
-                tooltip: 'Running History',
+                tooltip: 'Back to workout selection',
+              ),
+        actions: [
+          // Only show actions when not on workout selection screen
+          if (!_showWorkoutSelection) ...[
+            // Modern exercise selector with card design
+            Container(
+              margin: const EdgeInsets.only(right: 12, top: 8, bottom: 8),
+              padding: const EdgeInsets.symmetric(horizontal: 12),
+              decoration: BoxDecoration(
+                color:
+                    theme.colorScheme.primaryContainer.withValues(alpha: 0.15),
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(
+                  color: theme.colorScheme.primary.withValues(alpha: 0.3),
+                  width: 1,
+                ),
+              ),
+              child: DropdownButton<ExerciseType>(
+                value: _selectedExercise,
+                dropdownColor: theme.colorScheme.surfaceContainerHighest,
+                underline: const SizedBox(),
+                icon: Icon(Icons.fitness_center,
+                    color: theme.colorScheme.primary, size: 18),
+                items: ExerciseType.values.map((type) {
+                  return DropdownMenuItem(
+                    value: type,
+                    child: Text(
+                      type.toString().split('.').last.toUpperCase(),
+                      style: TextStyle(
+                        color: theme.colorScheme.onSurface,
+                        fontWeight: FontWeight.w600,
+                        fontSize: 13,
+                      ),
+                    ),
+                  );
+                }).toList(),
+                onChanged: (value) {
+                  if (value != null) {
+                    setState(() {
+                      _selectedExercise = value;
+                      if (value == ExerciseType.running) {
+                        // Running pose estimation removed - keep section empty
+                      } else if (value == ExerciseType.sitAndReach ||
+                          value == ExerciseType.vSitAndReach) {
+                        _selectedFlexibilityTest =
+                            value == ExerciseType.sitAndReach
+                                ? FlexibilityTestType.sitAndReach
+                                : FlexibilityTestType.vSitAndReach;
+                        _flexibilityAnalyzer = FlexibilityFormAnalyzer(
+                          testType: _selectedFlexibilityTest,
+                        );
+                        _flexibilityCalculator = FlexibilityMetricsCalculator(
+                          testType: _selectedFlexibilityTest,
+                          participantHeight: _participantHeight,
+                        );
+                        _currentFlexibilityForm = null;
+                        _currentFlexibilityMetrics = null;
+                        _baselineSet = false;
+                      } else {
+                        _repCounter = RepCounter(exerciseType: value);
+                      }
+                    });
+                  }
+                },
               ),
             ),
+            // Flexibility settings button (only show when flexibility test is selected)
+            if (_selectedExercise == ExerciseType.sitAndReach ||
+                _selectedExercise == ExerciseType.vSitAndReach)
+              Padding(
+                padding: const EdgeInsets.only(right: 8),
+                child: IconButton(
+                  icon: Icon(Icons.settings, color: theme.colorScheme.primary),
+                  onPressed: _showFlexibilitySettings,
+                  tooltip: 'Flexibility Settings',
+                ),
+              ),
+            // Running history button (only show when running is selected)
+            if (_selectedExercise == ExerciseType.running)
+              Padding(
+                padding: const EdgeInsets.only(right: 8),
+                child: IconButton(
+                  icon: Icon(Icons.history, color: theme.colorScheme.primary),
+                  onPressed: () {
+                    Navigator.pushNamed(context, '/running-history-screen');
+                  },
+                  tooltip: 'Running',
+                ),
+              ),
+          ],
         ],
       ),
       body: _buildBody(),
       bottomNavigationBar: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          _buildControls(),
+          // Only show controls when not on workout selection screen
+          if (!_showWorkoutSelection) _buildControls(),
           CustomBottomBar(
             currentRoute: '/fitness-screen',
             onNavigate: (route) {
@@ -620,6 +665,11 @@ class _FitnessScreenState extends State<FitnessScreen> {
   }
 
   Widget _buildBody() {
+    // Show workout selection screen first
+    if (_showWorkoutSelection) {
+      return _buildWorkoutSelectionView();
+    }
+
     switch (_mode) {
       case AppMode.camera:
         return _buildCameraView();
@@ -630,6 +680,300 @@ class _FitnessScreenState extends State<FitnessScreen> {
       case AppMode.exporting:
         return _buildExportingView();
     }
+  }
+
+  Widget _buildWorkoutSelectionView() {
+    final theme = Theme.of(context);
+
+    // Define workout types with their details using modern, vibrant colors
+    final workouts = [
+      {
+        'type': ExerciseType.pushUp,
+        'name': 'Push Ups',
+        'icon': Icons.workspaces_rounded,
+        'description': 'Track your push-up reps',
+        'color': const Color(0xFF3B82F6), // Vibrant blue
+      },
+      {
+        'type': ExerciseType.pullUp,
+        'name': 'Pull Ups',
+        'icon': Icons.fitness_center_rounded,
+        'description': 'Track your pull-up reps',
+        'color': const Color(0xFF10B981), // Emerald green
+      },
+      {
+        'type': ExerciseType.sitUp,
+        'name': 'Sit Ups',
+        'icon': Icons.airline_seat_recline_normal_rounded,
+        'description': 'Track your sit-up reps',
+        'color': const Color(0xFFF59E0B), // Amber orange
+      },
+      {
+        'type': ExerciseType.running,
+        'name': 'Running',
+        'icon': Icons.directions_run_rounded,
+        'description': 'Analyze your running form',
+        'color': const Color(0xFFEF4444), // Vibrant red
+      },
+      {
+        'type': ExerciseType.sitAndReach,
+        'name': 'Sit & Reach',
+        'icon': Icons.accessibility_rounded,
+        'description': 'Test your flexibility',
+        'color': const Color(0xFF8B5CF6), // Purple
+      },
+      {
+        'type': ExerciseType.vSitAndReach,
+        'name': 'V-Sit & Reach',
+        'icon': Icons.self_improvement_rounded,
+        'description': 'Advanced flexibility test',
+        'color': const Color(0xFF14B8A6), // Teal
+      },
+    ];
+
+    return Container(
+      color: theme.colorScheme.surface,
+      child: SafeArea(
+        child: Column(
+          children: [
+            // Header
+            Padding(
+              padding: const EdgeInsets.fromLTRB(24, 24, 24, 16),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.all(12),
+                        decoration: BoxDecoration(
+                          gradient: LinearGradient(
+                            colors: [
+                              theme.colorScheme.primary.withValues(alpha: 0.2),
+                              theme.colorScheme.tertiary.withValues(alpha: 0.1),
+                            ],
+                          ),
+                          borderRadius: BorderRadius.circular(16),
+                        ),
+                        child: Icon(
+                          Icons.fitness_center_rounded,
+                          color: theme.colorScheme.primary,
+                          size: 28,
+                        ),
+                      ),
+                      const SizedBox(width: 16),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              'Choose Your Workout',
+                              style: theme.textTheme.headlineSmall?.copyWith(
+                                fontWeight: FontWeight.bold,
+                                color: theme.colorScheme.onSurface,
+                                letterSpacing: -0.5,
+                              ),
+                            ),
+                            const SizedBox(height: 4),
+                            Text(
+                              'Select an exercise to start tracking',
+                              style: theme.textTheme.bodyMedium?.copyWith(
+                                color: theme.colorScheme.onSurfaceVariant
+                                    .withValues(alpha: 0.7),
+                                fontSize: 13,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+
+            // Workout tiles grid
+            Expanded(
+              child: GridView.builder(
+                padding: const EdgeInsets.fromLTRB(20, 8, 20, 20),
+                gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                  crossAxisCount: 2,
+                  childAspectRatio: 0.80,
+                  crossAxisSpacing: 16,
+                  mainAxisSpacing: 16,
+                ),
+                itemCount: workouts.length,
+                itemBuilder: (context, index) {
+                  final workout = workouts[index];
+                  return _buildWorkoutTile(
+                    exerciseType: workout['type'] as ExerciseType,
+                    name: workout['name'] as String,
+                    icon: workout['icon'] as IconData,
+                    description: workout['description'] as String,
+                    color: workout['color'] as Color,
+                  );
+                },
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildWorkoutTile({
+    required ExerciseType exerciseType,
+    required String name,
+    required IconData icon,
+    required String description,
+    required Color color,
+  }) {
+    final theme = Theme.of(context);
+
+    return AnimatedContainer(
+      duration: const Duration(milliseconds: 200),
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          onTap: () {
+            // Special handling for running - navigate directly to history
+            if (exerciseType == ExerciseType.running) {
+              Navigator.pushNamed(context, '/running-history-screen');
+              return;
+            }
+
+            setState(() {
+              // Clear any previous video analysis state
+              _clearVideoAnalysisState();
+
+              _selectedExercise = exerciseType;
+              _showWorkoutSelection = false;
+
+              // Initialize appropriate counter/analyzer based on exercise type
+              if (exerciseType == ExerciseType.sitAndReach ||
+                  exerciseType == ExerciseType.vSitAndReach) {
+                _selectedFlexibilityTest =
+                    exerciseType == ExerciseType.sitAndReach
+                        ? FlexibilityTestType.sitAndReach
+                        : FlexibilityTestType.vSitAndReach;
+                _flexibilityAnalyzer = FlexibilityFormAnalyzer(
+                  testType: _selectedFlexibilityTest,
+                );
+                _flexibilityCalculator = FlexibilityMetricsCalculator(
+                  testType: _selectedFlexibilityTest,
+                  participantHeight: _participantHeight,
+                );
+                _currentFlexibilityForm = null;
+                _currentFlexibilityMetrics = null;
+                _baselineSet = false;
+              } else {
+                _repCounter = RepCounter(exerciseType: exerciseType);
+              }
+            });
+          },
+          borderRadius: BorderRadius.circular(24),
+          splashColor: color.withValues(alpha: 0.3),
+          highlightColor: color.withValues(alpha: 0.2),
+          child: Ink(
+            decoration: BoxDecoration(
+              color: color.withValues(alpha: 0.15),
+              borderRadius: BorderRadius.circular(24),
+            ),
+            child: Padding(
+              padding: const EdgeInsets.all(16),
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                crossAxisAlignment: CrossAxisAlignment.center,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  // Icon container with gradient and glow effect
+                  Container(
+                    width: 64,
+                    height: 64,
+                    decoration: BoxDecoration(
+                      color: color.withValues(alpha: 0.15),
+                      shape: BoxShape.circle,
+                      border: Border.all(
+                        color: color.withValues(alpha: 0.3),
+                        width: 2,
+                      ),
+                    ),
+                    child: Icon(
+                      icon,
+                      size: 32,
+                      color: color,
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  // Workout name
+                  Text(
+                    name,
+                    style: theme.textTheme.titleLarge?.copyWith(
+                      fontWeight: FontWeight.bold,
+                      color: theme.colorScheme.onSurface,
+                      letterSpacing: -0.5,
+                    ),
+                    textAlign: TextAlign.center,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                  const SizedBox(height: 6),
+                  // Description with subtle styling
+                  Text(
+                    description,
+                    style: theme.textTheme.bodySmall?.copyWith(
+                      color: theme.colorScheme.onSurfaceVariant
+                          .withValues(alpha: 0.8),
+                      fontSize: 12,
+                      height: 1.4,
+                    ),
+                    textAlign: TextAlign.center,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                  const SizedBox(height: 8),
+                  // Start indicator
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 12,
+                      vertical: 6,
+                    ),
+                    decoration: BoxDecoration(
+                      color: color.withValues(alpha: 0.15),
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(
+                        color: color.withValues(alpha: 0.3),
+                        width: 1,
+                      ),
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Text(
+                          'Start',
+                          style: TextStyle(
+                            color: color,
+                            fontSize: 11,
+                            fontWeight: FontWeight.w600,
+                            letterSpacing: 0.5,
+                          ),
+                        ),
+                        const SizedBox(width: 4),
+                        Icon(
+                          Icons.arrow_forward_rounded,
+                          size: 14,
+                          color: color,
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
   }
 
   Widget _buildCameraView() {

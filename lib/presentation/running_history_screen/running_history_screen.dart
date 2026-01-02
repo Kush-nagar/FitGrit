@@ -624,7 +624,7 @@ class _RunningHistoryScreenState extends State<RunningHistoryScreen> {
       backgroundColor: theme.colorScheme.surface,
       appBar: CustomAppBar(
         variant: CustomAppBarVariant.standard,
-        title: 'Running History',
+        title: 'Running',
         centerTitle: false,
         actions: [
           if (_isAuthenticated)
