@@ -1,0 +1,742 @@
+/// Shuttle Run Details Screen
+/// Shows detailed statistics and metrics for shuttle run analysis
+import 'package:flutter/material.dart';
+import 'package:fl_chart/fl_chart.dart';
+import '../../widgets/custom_app_bar.dart';
+import '../../services/shuttle_run_metrics_calculator.dart';
+
+class ShuttleRunDetailsScreen extends StatefulWidget {
+  final ShuttleRunPerformanceMetrics metrics;
+
+  const ShuttleRunDetailsScreen({
+    super.key,
+    required this.metrics,
+  });
+
+  @override
+  State<ShuttleRunDetailsScreen> createState() =>
+      _ShuttleRunDetailsScreenState();
+}
+
+class _ShuttleRunDetailsScreenState extends State<ShuttleRunDetailsScreen> {
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+
+    return Scaffold(
+      backgroundColor: theme.colorScheme.surface,
+      appBar: CustomAppBar(
+        variant: CustomAppBarVariant.standard,
+        title: 'Shuttle Run Analysis',
+        centerTitle: false,
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back),
+          onPressed: () => Navigator.pop(context),
+        ),
+      ),
+      body: SingleChildScrollView(
+        physics: const BouncingScrollPhysics(),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            _buildModernHeader(theme),
+            const SizedBox(height: 20),
+            _buildHighlightCards(theme),
+            const SizedBox(height: 24),
+            _buildCompactStatsGrid(theme),
+            const SizedBox(height: 24),
+            _buildSpeedChart(theme),
+            const SizedBox(height: 20),
+            _buildRunTimesChart(theme),
+            const SizedBox(height: 32),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildModernHeader(ThemeData theme) {
+    return Container(
+      width: double.infinity,
+      margin: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [
+            theme.colorScheme.primaryContainer,
+            theme.colorScheme.secondaryContainer,
+          ],
+        ),
+        borderRadius: BorderRadius.circular(24),
+        boxShadow: [
+          BoxShadow(
+            color: theme.colorScheme.primary.withValues(alpha: 0.2),
+            blurRadius: 20,
+            offset: const Offset(0, 8),
+          ),
+        ],
+      ),
+      child: Padding(
+        padding: const EdgeInsets.all(24),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: theme.colorScheme.primary.withValues(alpha: 0.2),
+                    borderRadius: BorderRadius.circular(16),
+                  ),
+                  child: Icon(
+                    Icons.swap_horiz_rounded,
+                    color: theme.colorScheme.primary,
+                    size: 32,
+                  ),
+                ),
+                const SizedBox(width: 16),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Shuttle Run',
+                        style: theme.textTheme.headlineSmall?.copyWith(
+                          fontWeight: FontWeight.bold,
+                          color: theme.colorScheme.onPrimaryContainer,
+                        ),
+                      ),
+                      Text(
+                        'Performance Analysis',
+                        style: theme.textTheme.bodyLarge?.copyWith(
+                          color: theme.colorScheme.onPrimaryContainer
+                              .withValues(alpha: 0.7),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 20),
+            Row(
+              children: [
+                _buildHeaderStat(
+                  icon: Icons.directions_run,
+                  label: 'Runs',
+                  value: '${widget.metrics.completedRuns}',
+                  theme: theme,
+                ),
+                const SizedBox(width: 16),
+                _buildHeaderStat(
+                  icon: Icons.timer,
+                  label: 'Duration',
+                  value: '${widget.metrics.totalTime.toStringAsFixed(1)}s',
+                  theme: theme,
+                ),
+                const SizedBox(width: 16),
+                _buildHeaderStat(
+                  icon: Icons.straighten,
+                  label: 'Distance',
+                  value: '${widget.metrics.totalDistance.toStringAsFixed(0)}m',
+                  theme: theme,
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildHeaderStat({
+    required IconData icon,
+    required String label,
+    required String value,
+    required ThemeData theme,
+  }) {
+    return Expanded(
+      child: Container(
+        padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 8),
+        decoration: BoxDecoration(
+          color: theme.colorScheme.surface.withValues(alpha: 0.3),
+          borderRadius: BorderRadius.circular(12),
+        ),
+        child: Column(
+          children: [
+            Icon(
+              icon,
+              color: theme.colorScheme.onPrimaryContainer,
+              size: 20,
+            ),
+            const SizedBox(height: 4),
+            Text(
+              value,
+              style: theme.textTheme.titleMedium?.copyWith(
+                fontWeight: FontWeight.bold,
+                color: theme.colorScheme.onPrimaryContainer,
+              ),
+            ),
+            Text(
+              label,
+              style: theme.textTheme.bodySmall?.copyWith(
+                color:
+                    theme.colorScheme.onPrimaryContainer.withValues(alpha: 0.7),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildHighlightCards(ThemeData theme) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16),
+      child: Row(
+        children: [
+          Expanded(
+            child: _buildHighlightCard(
+              icon: Icons.flash_on,
+              label: 'Max Speed',
+              value: '${widget.metrics.maxSpeed.toStringAsFixed(2)}',
+              unit: 'm/s',
+              color: Colors.orange,
+              theme: theme,
+            ),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: _buildHighlightCard(
+              icon: Icons.trending_up,
+              label: 'Avg Speed',
+              value: '${widget.metrics.averageSpeed.toStringAsFixed(2)}',
+              unit: 'm/s',
+              color: Colors.blue,
+              theme: theme,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildHighlightCard({
+    required IconData icon,
+    required String label,
+    required String value,
+    required String unit,
+    required Color color,
+    required ThemeData theme,
+  }) {
+    return Container(
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.1),
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(
+          color: color.withValues(alpha: 0.3),
+          width: 2,
+        ),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(icon, color: color, size: 28),
+          const SizedBox(height: 12),
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.end,
+            children: [
+              Text(
+                value,
+                style: theme.textTheme.headlineMedium?.copyWith(
+                  fontWeight: FontWeight.bold,
+                  color: color,
+                ),
+              ),
+              const SizedBox(width: 4),
+              Padding(
+                padding: const EdgeInsets.only(bottom: 4),
+                child: Text(
+                  unit,
+                  style: theme.textTheme.bodyMedium?.copyWith(
+                    color: color.withValues(alpha: 0.7),
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 4),
+          Text(
+            label,
+            style: theme.textTheme.bodyMedium?.copyWith(
+              color: theme.colorScheme.onSurface.withValues(alpha: 0.6),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildCompactStatsGrid(ThemeData theme) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'Detailed Metrics',
+            style: theme.textTheme.titleLarge?.copyWith(
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+          const SizedBox(height: 16),
+          Container(
+            decoration: BoxDecoration(
+              color: theme.colorScheme.surfaceContainerHighest
+                  .withValues(alpha: 0.3),
+              borderRadius: BorderRadius.circular(16),
+            ),
+            child: Column(
+              children: [
+                _buildStatRow(
+                  icon: Icons.av_timer,
+                  label: 'Avg Run Time',
+                  value:
+                      '${widget.metrics.averageRunTime.toStringAsFixed(2)} s',
+                  theme: theme,
+                  isFirst: true,
+                ),
+                _buildStatRow(
+                  icon: Icons.swap_horiz,
+                  label: 'Direction Changes',
+                  value: '${widget.metrics.directionChanges}',
+                  theme: theme,
+                ),
+                _buildStatRow(
+                  icon: Icons.rotate_90_degrees_ccw,
+                  label: 'Avg Turn Time',
+                  value:
+                      '${widget.metrics.averageTurnTime.toStringAsFixed(2)} s',
+                  theme: theme,
+                ),
+                _buildStatRow(
+                  icon: Icons.architecture,
+                  label: 'Shuttle Distance',
+                  value:
+                      '${widget.metrics.shuttleDistance.toStringAsFixed(1)} m',
+                  theme: theme,
+                  isLast: true,
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildStatRow({
+    required IconData icon,
+    required String label,
+    required String value,
+    required ThemeData theme,
+    bool isFirst = false,
+    bool isLast = false,
+  }) {
+    return Container(
+      decoration: BoxDecoration(
+        border: Border(
+          bottom: isLast
+              ? BorderSide.none
+              : BorderSide(
+                  color: theme.colorScheme.outline.withValues(alpha: 0.2),
+                ),
+        ),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+        child: Row(
+          children: [
+            Container(
+              padding: const EdgeInsets.all(8),
+              decoration: BoxDecoration(
+                color:
+                    theme.colorScheme.primaryContainer.withValues(alpha: 0.5),
+                borderRadius: BorderRadius.circular(10),
+              ),
+              child: Icon(
+                icon,
+                color: theme.colorScheme.primary,
+                size: 20,
+              ),
+            ),
+            const SizedBox(width: 16),
+            Expanded(
+              child: Text(
+                label,
+                style: theme.textTheme.bodyLarge?.copyWith(
+                  color: theme.colorScheme.onSurface,
+                ),
+              ),
+            ),
+            Text(
+              value,
+              style: theme.textTheme.titleMedium?.copyWith(
+                fontWeight: FontWeight.bold,
+                color: theme.colorScheme.primary,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildSpeedChart(ThemeData theme) {
+    if (widget.metrics.speedProfile.isEmpty) {
+      return const SizedBox.shrink();
+    }
+
+    final speedData = widget.metrics.speedProfile
+        .asMap()
+        .entries
+        .map((e) => FlSpot(e.key.toDouble(), e.value))
+        .toList();
+
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(
+                Icons.show_chart,
+                color: theme.colorScheme.primary,
+                size: 24,
+              ),
+              const SizedBox(width: 8),
+              Text(
+                'Speed Profile',
+                style: theme.textTheme.titleLarge?.copyWith(
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          Container(
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+                colors: [
+                  theme.colorScheme.primaryContainer.withValues(alpha: 0.3),
+                  theme.colorScheme.secondaryContainer.withValues(alpha: 0.3),
+                ],
+              ),
+              borderRadius: BorderRadius.circular(20),
+              border: Border.all(
+                color: theme.colorScheme.outline.withValues(alpha: 0.2),
+              ),
+            ),
+            child: Padding(
+              padding: const EdgeInsets.all(20),
+              child: SizedBox(
+                height: 220,
+                child: LineChart(
+                  LineChartData(
+                    gridData: FlGridData(
+                      show: true,
+                      drawVerticalLine: false,
+                      horizontalInterval: 1,
+                      getDrawingHorizontalLine: (value) {
+                        return FlLine(
+                          color:
+                              theme.colorScheme.outline.withValues(alpha: 0.15),
+                          strokeWidth: 1,
+                          dashArray: [5, 5],
+                        );
+                      },
+                    ),
+                    titlesData: FlTitlesData(
+                      show: true,
+                      rightTitles: const AxisTitles(
+                        sideTitles: SideTitles(showTitles: false),
+                      ),
+                      topTitles: const AxisTitles(
+                        sideTitles: SideTitles(showTitles: false),
+                      ),
+                      bottomTitles: AxisTitles(
+                        axisNameWidget: Padding(
+                          padding: const EdgeInsets.only(top: 8),
+                          child: Text(
+                            'Time',
+                            style: theme.textTheme.bodySmall?.copyWith(
+                              fontWeight: FontWeight.w500,
+                            ),
+                          ),
+                        ),
+                        sideTitles: SideTitles(
+                          showTitles: true,
+                          reservedSize: 32,
+                          interval: (speedData.length / 5).ceilToDouble(),
+                          getTitlesWidget: (value, meta) {
+                            return Padding(
+                              padding: const EdgeInsets.only(top: 4),
+                              child: Text(
+                                value.toInt().toString(),
+                                style: theme.textTheme.bodySmall,
+                              ),
+                            );
+                          },
+                        ),
+                      ),
+                      leftTitles: AxisTitles(
+                        axisNameWidget: Padding(
+                          padding: const EdgeInsets.only(right: 8),
+                          child: Text(
+                            'm/s',
+                            style: theme.textTheme.bodySmall?.copyWith(
+                              fontWeight: FontWeight.w500,
+                            ),
+                          ),
+                        ),
+                        sideTitles: SideTitles(
+                          showTitles: true,
+                          reservedSize: 42,
+                          getTitlesWidget: (value, meta) {
+                            return Text(
+                              value.toStringAsFixed(1),
+                              style: theme.textTheme.bodySmall,
+                            );
+                          },
+                        ),
+                      ),
+                    ),
+                    borderData: FlBorderData(show: false),
+                    minX: 0,
+                    maxX: speedData.length.toDouble() - 1,
+                    minY: 0,
+                    maxY: (widget.metrics.maxSpeed * 1.2).ceilToDouble(),
+                    lineBarsData: [
+                      LineChartBarData(
+                        spots: speedData,
+                        isCurved: true,
+                        curveSmoothness: 0.4,
+                        gradient: LinearGradient(
+                          colors: [
+                            theme.colorScheme.primary,
+                            theme.colorScheme.secondary,
+                          ],
+                        ),
+                        barWidth: 4,
+                        isStrokeCapRound: true,
+                        dotData: const FlDotData(show: false),
+                        belowBarData: BarAreaData(
+                          show: true,
+                          gradient: LinearGradient(
+                            colors: [
+                              theme.colorScheme.primary.withValues(alpha: 0.4),
+                              theme.colorScheme.secondary
+                                  .withValues(alpha: 0.1),
+                            ],
+                            begin: Alignment.topCenter,
+                            end: Alignment.bottomCenter,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildRunTimesChart(ThemeData theme) {
+    if (widget.metrics.runTimes.isEmpty) {
+      return const SizedBox.shrink();
+    }
+
+    final runTimeData = widget.metrics.runTimes
+        .asMap()
+        .entries
+        .map((e) => BarChartGroupData(
+              x: e.key,
+              barRods: [
+                BarChartRodData(
+                  toY: e.value,
+                  gradient: LinearGradient(
+                    colors: [
+                      theme.colorScheme.primary,
+                      theme.colorScheme.secondary,
+                    ],
+                    begin: Alignment.bottomCenter,
+                    end: Alignment.topCenter,
+                  ),
+                  width: 24,
+                  borderRadius:
+                      const BorderRadius.vertical(top: Radius.circular(8)),
+                ),
+              ],
+            ))
+        .toList();
+
+    final maxTime = widget.metrics.runTimes.reduce((a, b) => a > b ? a : b);
+
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(
+                Icons.bar_chart,
+                color: theme.colorScheme.primary,
+                size: 24,
+              ),
+              const SizedBox(width: 8),
+              Text(
+                'Individual Run Times',
+                style: theme.textTheme.titleLarge?.copyWith(
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          Container(
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+                colors: [
+                  theme.colorScheme.secondaryContainer.withValues(alpha: 0.3),
+                  theme.colorScheme.primaryContainer.withValues(alpha: 0.3),
+                ],
+              ),
+              borderRadius: BorderRadius.circular(20),
+              border: Border.all(
+                color: theme.colorScheme.outline.withValues(alpha: 0.2),
+              ),
+            ),
+            child: Padding(
+              padding: const EdgeInsets.all(20),
+              child: SizedBox(
+                height: 220,
+                child: BarChart(
+                  BarChartData(
+                    alignment: BarChartAlignment.spaceAround,
+                    maxY: (maxTime * 1.2).ceilToDouble(),
+                    barTouchData: BarTouchData(
+                      enabled: true,
+                      touchTooltipData: BarTouchTooltipData(
+                        tooltipBorder: const BorderSide(
+                          color: Colors.transparent,
+                        ),
+                        tooltipPadding: const EdgeInsets.symmetric(
+                          horizontal: 12,
+                          vertical: 8,
+                        ),
+                        getTooltipItem: (group, groupIndex, rod, rodIndex) {
+                          return BarTooltipItem(
+                            '${widget.metrics.runTimes[group.x.toInt()].toStringAsFixed(2)}s',
+                            TextStyle(
+                              color: theme.colorScheme.onPrimary,
+                              fontWeight: FontWeight.bold,
+                              fontSize: 14,
+                            ),
+                          );
+                        },
+                      ),
+                    ),
+                    titlesData: FlTitlesData(
+                      show: true,
+                      rightTitles: const AxisTitles(
+                        sideTitles: SideTitles(showTitles: false),
+                      ),
+                      topTitles: const AxisTitles(
+                        sideTitles: SideTitles(showTitles: false),
+                      ),
+                      bottomTitles: AxisTitles(
+                        axisNameWidget: Padding(
+                          padding: const EdgeInsets.only(top: 8),
+                          child: Text(
+                            'Run Number',
+                            style: theme.textTheme.bodySmall?.copyWith(
+                              fontWeight: FontWeight.w500,
+                            ),
+                          ),
+                        ),
+                        sideTitles: SideTitles(
+                          showTitles: true,
+                          reservedSize: 32,
+                          getTitlesWidget: (value, meta) {
+                            return Padding(
+                              padding: const EdgeInsets.only(top: 4),
+                              child: Text(
+                                '${value.toInt() + 1}',
+                                style: theme.textTheme.bodySmall?.copyWith(
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
+                            );
+                          },
+                        ),
+                      ),
+                      leftTitles: AxisTitles(
+                        axisNameWidget: Padding(
+                          padding: const EdgeInsets.only(right: 8),
+                          child: Text(
+                            'sec',
+                            style: theme.textTheme.bodySmall?.copyWith(
+                              fontWeight: FontWeight.w500,
+                            ),
+                          ),
+                        ),
+                        sideTitles: SideTitles(
+                          showTitles: true,
+                          reservedSize: 42,
+                          getTitlesWidget: (value, meta) {
+                            return Text(
+                              value.toStringAsFixed(1),
+                              style: theme.textTheme.bodySmall,
+                            );
+                          },
+                        ),
+                      ),
+                    ),
+                    gridData: FlGridData(
+                      show: true,
+                      drawVerticalLine: false,
+                      horizontalInterval: 1,
+                      getDrawingHorizontalLine: (value) {
+                        return FlLine(
+                          color:
+                              theme.colorScheme.outline.withValues(alpha: 0.15),
+                          strokeWidth: 1,
+                          dashArray: [5, 5],
+                        );
+                      },
+                    ),
+                    borderData: FlBorderData(show: false),
+                    barGroups: runTimeData,
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}

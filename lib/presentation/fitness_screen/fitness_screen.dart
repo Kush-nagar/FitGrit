@@ -12,11 +12,14 @@ import '../../models/keypoint.dart';
 import '../../models/rep_counter.dart';
 import '../../models/video_frame.dart';
 import '../../models/flexibility_form_analyzer.dart';
+import '../../models/shuttle_run_analyzer.dart';
 import '../../services/camera_service.dart';
 import '../../services/video_service.dart';
 import '../../services/pose_estimator.dart';
 import '../../services/flexibility_metrics_calculator.dart';
+import '../../services/shuttle_run_metrics_calculator.dart';
 import '../../widgets/pose_painter.dart';
+import '../shuttle_run_details_screen/shuttle_run_details_screen.dart';
 
 enum AppMode { camera, video, processing, exporting }
 
@@ -56,6 +59,13 @@ class _FitnessScreenState extends State<FitnessScreen> {
   RepCounter? _flexibilityRepCounter;
   int _flexibilityRepCount = 0;
 
+  // Shuttle run analysis state
+  ShuttleRunAnalyzer? _shuttleRunAnalyzer;
+  ShuttleRunMetricsCalculator? _shuttleRunCalculator;
+  ShuttleRunMetrics? _currentShuttleRunForm;
+  ShuttleRunPerformanceMetrics? _currentShuttleRunMetrics;
+  final double _shuttleDistance = 20.0; // meters (20m is standard)
+
   List<Keypoint> _currentKeypoints = [];
   List<Keypoint> _smoothedKeypoints = [];
   bool _isProcessing = false;
@@ -63,7 +73,7 @@ class _FitnessScreenState extends State<FitnessScreen> {
   // Video state
   VideoPlayerController? _videoController;
   String? _currentVideoPath;
-  Map<int, List<Keypoint>> _videoFrameKeypoints = {};
+  final Map<int, List<Keypoint>> _videoFrameKeypoints = {};
   double _exportProgress = 0.0;
 
   // Camera stream subscription
@@ -94,6 +104,12 @@ class _FitnessScreenState extends State<FitnessScreen> {
                 : ExerciseType.vSitAndReach,
         upThreshold: 0.7,
         downThreshold: 0.3,
+      );
+      // Initialize shuttle run analyzers
+      _shuttleRunAnalyzer = ShuttleRunAnalyzer();
+      _shuttleRunCalculator = ShuttleRunMetricsCalculator(
+        shuttleDistance: _shuttleDistance,
+        videoFps: 30.0,
       );
       setState(() {});
     } catch (e) {
@@ -181,6 +197,16 @@ class _FitnessScreenState extends State<FitnessScreen> {
       // Update rep counter or flexibility analyzer based on exercise type
       if (_selectedExercise == ExerciseType.running) {
         // Running pose estimation removed - keep section empty
+      } else if (_selectedExercise == ExerciseType.shuttleRun) {
+        // Handle shuttle run
+        if (_shuttleRunAnalyzer != null) {
+          _currentShuttleRunForm =
+              _shuttleRunAnalyzer!.analyzeFrame(_smoothedKeypoints, timestamp);
+        }
+        if (_shuttleRunCalculator != null) {
+          _shuttleRunCalculator!.addFrame(_smoothedKeypoints);
+          _currentShuttleRunMetrics = _shuttleRunCalculator!.calculateMetrics();
+        }
       } else if (_selectedExercise == ExerciseType.sitAndReach ||
           _selectedExercise == ExerciseType.vSitAndReach) {
         // Handle flexibility exercises
@@ -263,12 +289,18 @@ class _FitnessScreenState extends State<FitnessScreen> {
 
       final tempDir = await getTemporaryDirectory();
 
-      // Extract frames with progress updates (now 3-5x faster with concurrent processing)
+      // Optimize frame skip for shuttle run (can analyze fewer frames)
+      final effectiveFrameSkip = _selectedExercise == ExerciseType.shuttleRun
+          ? 2 // Skip every other frame for shuttle run (30% faster)
+          : frameSkip;
+
+      // Extract frames with progress updates (optimized for speed)
       final frames = await _videoService.extractFramesWithFFmpeg(
         _currentVideoPath!,
         targetFps: 15,
         outputDir: tempDir.path,
-        concurrentExtractions: 8, // Process 8 frames at once
+        concurrentExtractions:
+            8, // Balanced extraction speed (was 12, reduced for stability)
         onProgress: (progress) {
           if (mounted) {
             setState(() {
@@ -285,101 +317,123 @@ class _FitnessScreenState extends State<FitnessScreen> {
       }
 
       // Apply frame skipping if requested (process every Nth frame for faster analysis)
-      final framesToProcess = frameSkip > 1
-          ? [for (int i = 0; i < frames.length; i += frameSkip) frames[i]]
+      final framesToProcess = effectiveFrameSkip > 1
+          ? [
+              for (int i = 0; i < frames.length; i += effectiveFrameSkip)
+                frames[i]
+            ]
           : frames;
 
       print(
-          'Processing ${framesToProcess.length} frames (skip: $frameSkip) with batch processing...');
+          'Processing ${framesToProcess.length} frames (skip: $effectiveFrameSkip) with batch processing...');
 
-      // Process frames in batches for 2-3x faster pose estimation
-      const batchSize = 4; // Process 4 frames in parallel
+      // Process frames in batches for faster pose estimation
+      // Reduced batch size to prevent memory issues on mobile devices
+      final batchSize = _selectedExercise == ExerciseType.shuttleRun
+          ? 4 // Moderate batch size for shuttle run (balanced speed/stability)
+          : 4; // Standard batch size for rep counting
       int processedCount = 0;
 
       for (int i = 0; i < framesToProcess.length; i += batchSize) {
-        final batchEnd = (i + batchSize).clamp(0, framesToProcess.length);
-        final batchFramePaths = framesToProcess.sublist(i, batchEnd);
-        final batchTimestamps = List.generate(
-          batchFramePaths.length,
-          (idx) => ((i + idx) * frameSkip * (1000 / 15)).round(),
-        );
-
-        // Load batch of frames concurrently
-        final videoFrames = await _videoService.loadFramesBatch(
-          batchFramePaths,
-          batchTimestamps,
-        );
-
-        // Process valid frames concurrently with isolates
-        final validFrames = <({VideoFrame frame, int timestamp})>[];
-        for (int j = 0; j < videoFrames.length; j++) {
-          if (videoFrames[j] != null) {
-            validFrames.add(
-              (frame: videoFrames[j]!, timestamp: batchTimestamps[j]),
-            );
-          }
-        }
-
-        if (validFrames.isNotEmpty) {
-          // Estimate poses in parallel
-          final batchKeypoints = await Future.wait(
-            validFrames.map((item) async {
-              final keypoints = await _poseEstimator.estimateFromBytes(
-                item.frame.rgbBytes,
-                item.frame.width,
-                item.frame.height,
-              );
-              return (keypoints: keypoints, timestamp: item.timestamp);
-            }),
+        // Add try-catch for each batch to prevent one bad frame from stopping everything
+        try {
+          final batchEnd = (i + batchSize).clamp(0, framesToProcess.length);
+          final batchFramePaths = framesToProcess.sublist(i, batchEnd);
+          final batchTimestamps = List.generate(
+            batchFramePaths.length,
+            (idx) => ((i + idx) * effectiveFrameSkip * (1000 / 15)).round(),
           );
 
-          // Update rep counter or flexibility analyzer and store results
-          for (final result in batchKeypoints) {
-            if (_selectedExercise == ExerciseType.running) {
-              // Running pose estimation removed - keep section empty
-            } else if (_selectedExercise == ExerciseType.sitAndReach ||
-                _selectedExercise == ExerciseType.vSitAndReach) {
-              // Flexibility analysis
-              if (!_baselineSet && result.keypoints.isNotEmpty) {
-                // Set baseline on first valid frame
-                if (_flexibilityCalculator != null) {
-                  _flexibilityCalculator!.setBaseline(result.keypoints);
-                  _baselineSet = true;
-                }
-              }
+          // Load batch of frames concurrently
+          final videoFrames = await _videoService.loadFramesBatch(
+            batchFramePaths,
+            batchTimestamps,
+          );
 
-              // Update rep counter for flexibility exercises
-              if (_flexibilityRepCounter != null) {
-                _flexibilityRepCounter!
-                    .update(result.keypoints, result.timestamp);
-                _flexibilityRepCount = _flexibilityRepCounter!.repCount;
-              }
-
-              // Update flexibility form analyzer
-              if (_flexibilityAnalyzer != null) {
-                _currentFlexibilityForm = _flexibilityAnalyzer!
-                    .analyzeFrame(result.keypoints, result.timestamp);
-              }
-
-              // Update flexibility metrics calculator
-              if (_flexibilityCalculator != null) {
-                _flexibilityCalculator!.addFrame(result.keypoints);
-              }
-            } else {
-              // Standard rep counting
-              _repCounter?.update(result.keypoints, result.timestamp);
+          // Process valid frames concurrently with isolates
+          final validFrames = <({VideoFrame frame, int timestamp})>[];
+          for (int j = 0; j < videoFrames.length; j++) {
+            if (videoFrames[j] != null) {
+              validFrames.add(
+                (frame: videoFrames[j]!, timestamp: batchTimestamps[j]),
+              );
             }
-
-            // Store keypoints for export
-            _videoFrameKeypoints[result.timestamp] = result.keypoints;
           }
-        }
 
-        processedCount += batchFramePaths.length;
-        if (mounted) {
-          setState(() {
-            _exportProgress = (processedCount / framesToProcess.length) * 0.5;
-          });
+          if (validFrames.isNotEmpty) {
+            // Estimate poses in parallel
+            final batchKeypoints = await Future.wait(
+              validFrames.map((item) async {
+                final keypoints = await _poseEstimator.estimateFromBytes(
+                  item.frame.rgbBytes,
+                  item.frame.width,
+                  item.frame.height,
+                );
+                return (keypoints: keypoints, timestamp: item.timestamp);
+              }),
+            );
+
+            // Update rep counter or flexibility analyzer and store results
+            for (final result in batchKeypoints) {
+              if (_selectedExercise == ExerciseType.running) {
+                // Running pose estimation removed - keep section empty
+              } else if (_selectedExercise == ExerciseType.shuttleRun) {
+                // Shuttle run analysis
+                if (_shuttleRunAnalyzer != null) {
+                  _currentShuttleRunForm = _shuttleRunAnalyzer!
+                      .analyzeFrame(result.keypoints, result.timestamp);
+                }
+                if (_shuttleRunCalculator != null) {
+                  _shuttleRunCalculator!.addFrame(result.keypoints);
+                }
+              } else if (_selectedExercise == ExerciseType.sitAndReach ||
+                  _selectedExercise == ExerciseType.vSitAndReach) {
+                // Flexibility analysis
+                if (!_baselineSet && result.keypoints.isNotEmpty) {
+                  // Set baseline on first valid frame
+                  if (_flexibilityCalculator != null) {
+                    _flexibilityCalculator!.setBaseline(result.keypoints);
+                    _baselineSet = true;
+                  }
+                }
+
+                // Update rep counter for flexibility exercises
+                if (_flexibilityRepCounter != null) {
+                  _flexibilityRepCounter!
+                      .update(result.keypoints, result.timestamp);
+                  _flexibilityRepCount = _flexibilityRepCounter!.repCount;
+                }
+
+                // Update flexibility form analyzer
+                if (_flexibilityAnalyzer != null) {
+                  _currentFlexibilityForm = _flexibilityAnalyzer!
+                      .analyzeFrame(result.keypoints, result.timestamp);
+                }
+
+                // Update flexibility metrics calculator
+                if (_flexibilityCalculator != null) {
+                  _flexibilityCalculator!.addFrame(result.keypoints);
+                }
+              } else {
+                // Standard rep counting
+                _repCounter?.update(result.keypoints, result.timestamp);
+              }
+
+              // Store keypoints for export
+              _videoFrameKeypoints[result.timestamp] = result.keypoints;
+            }
+          }
+
+          processedCount += batchFramePaths.length;
+          if (mounted) {
+            setState(() {
+              _exportProgress = (processedCount / framesToProcess.length) * 0.5;
+            });
+          }
+        } catch (batchError) {
+          print('Error processing batch at index $i: $batchError');
+          // Continue with next batch instead of failing completely
+          processedCount += batchSize;
         }
       }
 
@@ -393,6 +447,12 @@ class _FitnessScreenState extends State<FitnessScreen> {
         _currentFlexibilityMetrics = _flexibilityCalculator!.calculateMetrics();
       }
 
+      // Calculate final metrics for shuttle run
+      if (_selectedExercise == ExerciseType.shuttleRun &&
+          _shuttleRunCalculator != null) {
+        _currentShuttleRunMetrics = _shuttleRunCalculator!.calculateMetrics();
+      }
+
       setState(() {
         _mode = AppMode.video;
         _exportProgress = 0.0;
@@ -400,6 +460,20 @@ class _FitnessScreenState extends State<FitnessScreen> {
 
       if (_selectedExercise == ExerciseType.running) {
         // Running pose estimation removed - keep section empty
+      } else if (_selectedExercise == ExerciseType.shuttleRun) {
+        // Navigate to shuttle run details screen
+        if (_currentShuttleRunMetrics != null) {
+          Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (context) => ShuttleRunDetailsScreen(
+                metrics: _currentShuttleRunMetrics!,
+              ),
+            ),
+          );
+        } else {
+          _showError('No shuttle run metrics available');
+        }
       } else if (_selectedExercise == ExerciseType.sitAndReach ||
           _selectedExercise == ExerciseType.vSitAndReach) {
         // Show flexibility-specific results
@@ -716,6 +790,13 @@ class _FitnessScreenState extends State<FitnessScreen> {
         'color': const Color(0xFFEF4444), // Vibrant red
       },
       {
+        'type': ExerciseType.shuttleRun,
+        'name': 'Shuttle Run',
+        'icon': Icons.swap_horiz_rounded,
+        'description': 'Test your speed and agility',
+        'color': const Color(0xFFEC4899), // Pink
+      },
+      {
         'type': ExerciseType.sitAndReach,
         'name': 'Sit & Reach',
         'icon': Icons.accessibility_rounded,
@@ -866,6 +947,14 @@ class _FitnessScreenState extends State<FitnessScreen> {
                 _currentFlexibilityForm = null;
                 _currentFlexibilityMetrics = null;
                 _baselineSet = false;
+              } else if (exerciseType == ExerciseType.shuttleRun) {
+                _shuttleRunAnalyzer = ShuttleRunAnalyzer();
+                _shuttleRunCalculator = ShuttleRunMetricsCalculator(
+                  shuttleDistance: _shuttleDistance,
+                  videoFps: 30.0,
+                );
+                _currentShuttleRunForm = null;
+                _currentShuttleRunMetrics = null;
               } else {
                 _repCounter = RepCounter(exerciseType: exerciseType);
               }
@@ -1051,6 +1140,7 @@ class _FitnessScreenState extends State<FitnessScreen> {
           child: PoseOverlay(
             keypoints: _smoothedKeypoints,
             repCount: _selectedExercise == ExerciseType.running ||
+                    _selectedExercise == ExerciseType.shuttleRun ||
                     _selectedExercise == ExerciseType.sitAndReach ||
                     _selectedExercise == ExerciseType.vSitAndReach
                 ? null
@@ -1058,8 +1148,116 @@ class _FitnessScreenState extends State<FitnessScreen> {
             exerciseType: _selectedExercise.toString().split('.').last,
           ),
         ),
+        // Shuttle run metrics overlay
+        if (_selectedExercise == ExerciseType.shuttleRun &&
+            _currentShuttleRunMetrics != null)
+          Positioned(
+            top: 24,
+            left: 24,
+            right: 24,
+            child: Container(
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  colors: [
+                    const Color(0xFFEC4899).withValues(alpha: 0.95),
+                    const Color(0xFFF472B6).withValues(alpha: 0.95),
+                  ],
+                ),
+                borderRadius: BorderRadius.circular(16),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withValues(alpha: 0.3),
+                    blurRadius: 12,
+                    offset: const Offset(0, 4),
+                  ),
+                ],
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Row(
+                        children: [
+                          const Icon(
+                            Icons.swap_horiz_rounded,
+                            color: Colors.white,
+                            size: 24,
+                          ),
+                          const SizedBox(width: 8),
+                          const Text(
+                            'Shuttle Run',
+                            style: TextStyle(
+                              color: Colors.white,
+                              fontSize: 18,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ],
+                      ),
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 12, vertical: 6),
+                        decoration: BoxDecoration(
+                          color: _getQualityColor(
+                                  _currentShuttleRunForm?.overallQuality)
+                              .withValues(alpha: 0.3),
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(
+                            color: _getQualityColor(
+                                    _currentShuttleRunForm?.overallQuality)
+                                .withValues(alpha: 0.6),
+                            width: 1.5,
+                          ),
+                        ),
+                        child: Text(
+                          _currentShuttleRunForm?.overallQuality
+                                  .toString()
+                                  .split('.')
+                                  .last
+                                  .toUpperCase() ??
+                              'ANALYZING',
+                          style: TextStyle(
+                            color: _getQualityColor(
+                                _currentShuttleRunForm?.overallQuality),
+                            fontSize: 11,
+                            fontWeight: FontWeight.bold,
+                            letterSpacing: 0.5,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 12),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceAround,
+                    children: [
+                      _buildShuttleMetric(
+                        Icons.speed,
+                        'Speed',
+                        '${_currentShuttleRunMetrics!.averageSpeed.toStringAsFixed(1)} m/s',
+                      ),
+                      _buildShuttleMetric(
+                        Icons.swap_horiz,
+                        'Turns',
+                        '${_currentShuttleRunMetrics!.directionChanges}',
+                      ),
+                      _buildShuttleMetric(
+                        Icons.fast_forward,
+                        'Max',
+                        '${_currentShuttleRunMetrics!.maxSpeed.toStringAsFixed(1)} m/s',
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+          ),
         // Modern rep counter display for other exercises
         if (_selectedExercise != ExerciseType.running &&
+            _selectedExercise != ExerciseType.shuttleRun &&
             _selectedExercise != ExerciseType.sitAndReach &&
             _selectedExercise != ExerciseType.vSitAndReach)
           Positioned(
@@ -2691,6 +2889,46 @@ class _FitnessScreenState extends State<FitnessScreen> {
         ],
       ),
     );
+  }
+
+  /// Build a shuttle run metric for the camera overlay
+  Widget _buildShuttleMetric(IconData icon, String label, String value) {
+    return Column(
+      children: [
+        Icon(icon, color: Colors.white, size: 20),
+        const SizedBox(height: 4),
+        Text(
+          label,
+          style: const TextStyle(
+            color: Colors.white70,
+            fontSize: 10,
+          ),
+        ),
+        Text(
+          value,
+          style: const TextStyle(
+            color: Colors.white,
+            fontSize: 14,
+            fontWeight: FontWeight.bold,
+          ),
+        ),
+      ],
+    );
+  }
+
+  /// Get color based on quality
+  Color _getQualityColor(ShuttleFormQuality? quality) {
+    if (quality == null) return Colors.grey;
+    switch (quality) {
+      case ShuttleFormQuality.excellent:
+        return Colors.green;
+      case ShuttleFormQuality.good:
+        return Colors.lightGreen;
+      case ShuttleFormQuality.fair:
+        return Colors.orange;
+      case ShuttleFormQuality.poor:
+        return Colors.red;
+    }
   }
 }
 
