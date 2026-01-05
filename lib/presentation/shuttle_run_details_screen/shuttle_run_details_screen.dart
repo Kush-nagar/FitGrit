@@ -4,13 +4,16 @@ import 'package:flutter/material.dart';
 import 'package:fl_chart/fl_chart.dart';
 import '../../widgets/custom_app_bar.dart';
 import '../../services/shuttle_run_metrics_calculator.dart';
+import '../../services/presidential_fitness_benchmarks.dart';
 
 class ShuttleRunDetailsScreen extends StatefulWidget {
   final ShuttleRunPerformanceMetrics metrics;
+  final BenchmarkComparison? benchmarkComparison;
 
   const ShuttleRunDetailsScreen({
     super.key,
     required this.metrics,
+    this.benchmarkComparison,
   });
 
   @override
@@ -41,6 +44,10 @@ class _ShuttleRunDetailsScreenState extends State<ShuttleRunDetailsScreen> {
           children: [
             _buildModernHeader(theme),
             const SizedBox(height: 20),
+            if (widget.benchmarkComparison != null) ...[
+              _buildBenchmarkStatus(theme),
+              const SizedBox(height: 20),
+            ],
             _buildHighlightCards(theme),
             const SizedBox(height: 24),
             _buildCompactStatsGrid(theme),
@@ -737,6 +744,156 @@ class _ShuttleRunDetailsScreenState extends State<ShuttleRunDetailsScreen> {
           ),
         ],
       ),
+    );
+  }
+
+  Widget _buildBenchmarkStatus(ThemeData theme) {
+    final comparison = widget.benchmarkComparison!;
+
+    return Container(
+      width: double.infinity,
+      margin: const EdgeInsets.symmetric(horizontal: 16),
+      padding: const EdgeInsets.all(24),
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: comparison.passed
+              ? [
+                  Colors.green.withValues(alpha: 0.15),
+                  Colors.green.withValues(alpha: 0.05),
+                ]
+              : [
+                  Colors.red.withValues(alpha: 0.15),
+                  Colors.red.withValues(alpha: 0.05),
+                ],
+        ),
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(
+          color: comparison.passed
+              ? Colors.green.withValues(alpha: 0.4)
+              : Colors.red.withValues(alpha: 0.4),
+          width: 2,
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: (comparison.passed ? Colors.green : Colors.red)
+                .withValues(alpha: 0.2),
+            blurRadius: 12,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: (comparison.passed ? Colors.green : Colors.red)
+                      .withValues(alpha: 0.2),
+                  borderRadius: BorderRadius.circular(16),
+                ),
+                child: Icon(
+                  comparison.passed ? Icons.emoji_events : Icons.flag,
+                  color:
+                      comparison.passed ? Colors.green[700] : Colors.red[700],
+                  size: 40,
+                ),
+              ),
+              const SizedBox(width: 16),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Presidential Fitness Test',
+                      style: theme.textTheme.titleLarge?.copyWith(
+                        fontWeight: FontWeight.bold,
+                        fontSize: 20,
+                      ),
+                    ),
+                    const SizedBox(height: 6),
+                    Text(
+                      comparison.passed ? 'PASSED ✅' : 'NOT MET ❌',
+                      style: theme.textTheme.headlineSmall?.copyWith(
+                        fontWeight: FontWeight.bold,
+                        fontSize: 24,
+                        color: comparison.passed
+                            ? Colors.green[700]
+                            : Colors.red[700],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 20),
+          _buildBenchmarkStat(
+            'Your Time',
+            '${comparison.userValue.toStringAsFixed(1)}s',
+            theme,
+          ),
+          const SizedBox(height: 12),
+          _buildBenchmarkStat(
+            'Required Time',
+            '${comparison.benchmarkValue.toStringAsFixed(1)}s',
+            theme,
+          ),
+          const SizedBox(height: 12),
+          _buildBenchmarkStat(
+            'Difference',
+            comparison.differenceText,
+            theme,
+            color: comparison.passed ? Colors.green : Colors.red,
+          ),
+          const SizedBox(height: 16),
+          Container(
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: theme.colorScheme.surface.withValues(alpha: 0.6),
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: Text(
+              comparison.passed
+                  ? '🎉 Excellent work! You\'re ${comparison.differenceText} faster than the Presidential Fitness Test standard!'
+                  : '💪 Keep training! You need to be ${comparison.differenceText} faster to meet the Presidential Fitness Test standard.',
+              style: theme.textTheme.bodyLarge?.copyWith(
+                fontSize: 16,
+                color: theme.colorScheme.onSurface.withValues(alpha: 0.9),
+                height: 1.4,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildBenchmarkStat(String label, String value, ThemeData theme,
+      {Color? color}) {
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      children: [
+        Text(
+          label,
+          style: theme.textTheme.titleMedium?.copyWith(
+            fontSize: 17,
+            color: theme.colorScheme.onSurface.withValues(alpha: 0.7),
+          ),
+        ),
+        Text(
+          value,
+          style: theme.textTheme.titleLarge?.copyWith(
+            fontSize: 18,
+            fontWeight: FontWeight.bold,
+            color: color ?? theme.colorScheme.onSurface,
+          ),
+        ),
+      ],
     );
   }
 }

@@ -18,6 +18,9 @@ import '../../services/video_service.dart';
 import '../../services/pose_estimator.dart';
 import '../../services/flexibility_metrics_calculator.dart';
 import '../../services/shuttle_run_metrics_calculator.dart';
+import '../../services/firebase_fitness_service.dart';
+import '../../services/presidential_fitness_benchmarks.dart';
+import '../../services/user_preferences_service.dart';
 import '../../widgets/pose_painter.dart';
 import '../shuttle_run_details_screen/shuttle_run_details_screen.dart';
 
@@ -38,6 +41,13 @@ class _FitnessScreenState extends State<FitnessScreen> {
   final CameraService _cameraService = CameraService();
   final VideoService _videoService = VideoService();
   final PoseEstimator _poseEstimator = PoseEstimator();
+  final FirebaseFitnessService _firebaseFitnessService =
+      FirebaseFitnessService();
+  final UserPreferencesService _userPrefsService = UserPreferencesService();
+
+  // User data for benchmarks
+  int? _userAge;
+  Gender? _userGender;
 
   // State
   AppMode _mode = AppMode.camera;
@@ -83,6 +93,13 @@ class _FitnessScreenState extends State<FitnessScreen> {
   void initState() {
     super.initState();
     _initializeServices();
+    _loadUserData();
+  }
+
+  Future<void> _loadUserData() async {
+    _userAge = await _userPrefsService.getAge();
+    _userGender = await _userPrefsService.getGender();
+    setState(() {});
   }
 
   Future<void> _initializeServices() async {
@@ -461,13 +478,33 @@ class _FitnessScreenState extends State<FitnessScreen> {
       if (_selectedExercise == ExerciseType.running) {
         // Running pose estimation removed - keep section empty
       } else if (_selectedExercise == ExerciseType.shuttleRun) {
-        // Navigate to shuttle run details screen
+        // Save shuttle run data to Firebase with benchmark comparison
         if (_currentShuttleRunMetrics != null) {
+          await _firebaseFitnessService.saveShuttleRun(
+            metrics: _currentShuttleRunMetrics!,
+            videoPath: _currentVideoPath,
+            userAge: _userAge,
+            userGender: _userGender,
+          );
+
+          // Calculate benchmark comparison for display
+          BenchmarkComparison? comparison;
+          if (_userAge != null && _userGender != null) {
+            comparison = PresidentialFitnessBenchmarks.compareShuttleRun(
+              timeInSeconds: _currentShuttleRunMetrics!.totalTime /
+                  _currentShuttleRunMetrics!.completedRuns,
+              age: _userAge!,
+              gender: _userGender!,
+            );
+          }
+
+          // Navigate to shuttle run details screen
           Navigator.push(
             context,
             MaterialPageRoute(
               builder: (context) => ShuttleRunDetailsScreen(
                 metrics: _currentShuttleRunMetrics!,
+                benchmarkComparison: comparison,
               ),
             ),
           );
@@ -476,6 +513,32 @@ class _FitnessScreenState extends State<FitnessScreen> {
         }
       } else if (_selectedExercise == ExerciseType.sitAndReach ||
           _selectedExercise == ExerciseType.vSitAndReach) {
+        // Save flexibility test data to Firebase with benchmark comparison
+        if (_currentFlexibilityMetrics != null) {
+          await _firebaseFitnessService.saveFlexibilityTest(
+            metrics: _currentFlexibilityMetrics!,
+            reps: _flexibilityRepCount,
+            videoPath: _currentVideoPath,
+            userAge: _userAge,
+            userGender: _userGender,
+          );
+        }
+
+        // Calculate benchmark comparison for display
+        BenchmarkComparison? comparison;
+        if (_userAge != null &&
+            _userGender != null &&
+            _currentFlexibilityMetrics != null) {
+          final reachInches = PresidentialFitnessBenchmarks.cmToInches(
+            _currentFlexibilityMetrics!.maxReachDistance,
+          );
+          comparison = PresidentialFitnessBenchmarks.compareFlexibility(
+            reachInches: reachInches,
+            age: _userAge!,
+            gender: _userGender!,
+          );
+        }
+
         // Show flexibility-specific results
         final formQuality = _currentFlexibilityForm?.overallQuality
                 .toString()
@@ -494,10 +557,46 @@ class _FitnessScreenState extends State<FitnessScreen> {
           maxReach: maxReach,
           score: score,
           reps: _flexibilityRepCount,
+          benchmarkComparison: comparison,
         );
       } else {
-        _showSuccess(
-            'Video analysis complete! Reps: ${_repCounter?.repCount ?? 0}');
+        // Save rep-based exercise data to Firebase (pushUp, pullUp, sitUp)
+        final repCount = _repCounter?.repCount ?? 0;
+        if (repCount > 0) {
+          await _firebaseFitnessService.saveRepExercise(
+            exerciseType: _selectedExercise,
+            reps: repCount,
+            videoPath: _currentVideoPath,
+            userAge: _userAge,
+            userGender: _userGender,
+          );
+        }
+
+        // Calculate benchmark comparison for display
+        BenchmarkComparison? comparison;
+        if (_userAge != null && _userGender != null && repCount > 0) {
+          if (_selectedExercise == ExerciseType.sitUp) {
+            comparison = PresidentialFitnessBenchmarks.compareSitUps(
+              reps: repCount,
+              age: _userAge!,
+              gender: _userGender!,
+            );
+          } else if (_selectedExercise == ExerciseType.pullUp) {
+            comparison = PresidentialFitnessBenchmarks.comparePullUps(
+              reps: repCount,
+              age: _userAge!,
+              gender: _userGender!,
+            );
+          }
+        }
+
+        // Show success message (benchmark info now shown inline)
+        if (_userAge == null || _userGender == null) {
+          _showSuccess(
+              'Video analysis complete! Reps: $repCount\n\n💡 Tip: Tap the ⚙️ icon on workout selection to enable Presidential Fitness Test benchmarks!');
+        } else {
+          _showSuccess('Video analysis complete! Reps: $repCount');
+        }
       }
     } catch (e) {
       _showError('Video analysis failed: $e');
@@ -797,13 +896,6 @@ class _FitnessScreenState extends State<FitnessScreen> {
         'color': const Color(0xFFEC4899), // Pink
       },
       {
-        'type': ExerciseType.sitAndReach,
-        'name': 'Sit & Reach',
-        'icon': Icons.accessibility_rounded,
-        'description': 'Test your flexibility',
-        'color': const Color(0xFF8B5CF6), // Purple
-      },
-      {
         'type': ExerciseType.vSitAndReach,
         'name': 'V-Sit & Reach',
         'icon': Icons.self_improvement_rounded,
@@ -867,8 +959,54 @@ class _FitnessScreenState extends State<FitnessScreen> {
                           ],
                         ),
                       ),
+                      // Settings button for Presidential Fitness Test config
+                      IconButton(
+                        icon: Icon(
+                          Icons.settings_rounded,
+                          color: theme.colorScheme.primary,
+                        ),
+                        tooltip: 'Configure Presidential Fitness Test',
+                        onPressed: _showConfigureProfileDialog,
+                      ),
                     ],
                   ),
+                  // Show age/gender status if configured
+                  if (_userAge != null && _userGender != null)
+                    Padding(
+                      padding: const EdgeInsets.only(top: 12),
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 12,
+                          vertical: 8,
+                        ),
+                        decoration: BoxDecoration(
+                          color: Colors.green.withValues(alpha: 0.1),
+                          borderRadius: BorderRadius.circular(8),
+                          border: Border.all(
+                            color: Colors.green.withValues(alpha: 0.3),
+                          ),
+                        ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(
+                              Icons.emoji_events,
+                              size: 16,
+                              color: Colors.green[700],
+                            ),
+                            const SizedBox(width: 8),
+                            Text(
+                              'Presidential Fitness Test: Age $_userAge, ${_userGender == Gender.male ? 'Male' : 'Female'}',
+                              style: TextStyle(
+                                fontSize: 12,
+                                fontWeight: FontWeight.w600,
+                                color: Colors.green[700],
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
                 ],
               ),
             ),
@@ -1291,24 +1429,32 @@ class _FitnessScreenState extends State<FitnessScreen> {
                   ),
                 ],
               ),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.center,
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
                 children: [
-                  Icon(
-                    Icons.fitness_center,
-                    color: Theme.of(context).colorScheme.onPrimary,
-                    size: 28,
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Icon(
+                        Icons.fitness_center,
+                        color: Theme.of(context).colorScheme.onPrimary,
+                        size: 28,
+                      ),
+                      const SizedBox(width: 12),
+                      Text(
+                        'REPS: ${_repCounter?.repCount ?? 0}',
+                        style: TextStyle(
+                          color: Theme.of(context).colorScheme.onPrimary,
+                          fontSize: 32,
+                          fontWeight: FontWeight.bold,
+                          letterSpacing: 2,
+                        ),
+                      ),
+                    ],
                   ),
-                  const SizedBox(width: 12),
-                  Text(
-                    'REPS: ${_repCounter?.repCount ?? 0}',
-                    style: TextStyle(
-                      color: Theme.of(context).colorScheme.onPrimary,
-                      fontSize: 32,
-                      fontWeight: FontWeight.bold,
-                      letterSpacing: 2,
-                    ),
-                  ),
+                  // Benchmark comparison
+                  if (_userAge != null && _userGender != null)
+                    ..._buildBenchmarkInfo(),
                 ],
               ),
             ),
@@ -1469,24 +1615,32 @@ class _FitnessScreenState extends State<FitnessScreen> {
                   ),
                 ],
               ),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.center,
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
                 children: [
-                  Icon(
-                    Icons.analytics_rounded,
-                    color: Theme.of(context).colorScheme.onTertiary,
-                    size: 28,
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Icon(
+                        Icons.analytics_rounded,
+                        color: Theme.of(context).colorScheme.onTertiary,
+                        size: 28,
+                      ),
+                      const SizedBox(width: 12),
+                      Text(
+                        'REPS: ${_repCounter?.repCount ?? 0}',
+                        style: TextStyle(
+                          color: Theme.of(context).colorScheme.onTertiary,
+                          fontSize: 32,
+                          fontWeight: FontWeight.bold,
+                          letterSpacing: 2,
+                        ),
+                      ),
+                    ],
                   ),
-                  const SizedBox(width: 12),
-                  Text(
-                    'REPS: ${_repCounter?.repCount ?? 0}',
-                    style: TextStyle(
-                      color: Theme.of(context).colorScheme.onTertiary,
-                      fontSize: 32,
-                      fontWeight: FontWeight.bold,
-                      letterSpacing: 2,
-                    ),
-                  ),
+                  // Benchmark comparison
+                  if (_userAge != null && _userGender != null)
+                    ..._buildBenchmarkInfo(isVideoView: true),
                 ],
               ),
             ),
@@ -1936,6 +2090,7 @@ class _FitnessScreenState extends State<FitnessScreen> {
     required String maxReach,
     required String score,
     required int reps,
+    BenchmarkComparison? benchmarkComparison,
   }) {
     final theme = Theme.of(context);
     final isGoodForm = formQuality.toLowerCase() == 'excellent' ||
@@ -1962,6 +2117,70 @@ class _FitnessScreenState extends State<FitnessScreen> {
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
+              // Presidential Fitness Test Status
+              if (benchmarkComparison != null) ...[
+                Container(
+                  padding: const EdgeInsets.all(16),
+                  decoration: BoxDecoration(
+                    color: benchmarkComparison.passed
+                        ? Colors.green.withValues(alpha: 0.1)
+                        : Colors.red.withValues(alpha: 0.1),
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(
+                      color: benchmarkComparison.passed
+                          ? Colors.green.withValues(alpha: 0.3)
+                          : Colors.red.withValues(alpha: 0.3),
+                      width: 2,
+                    ),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          Icon(
+                            benchmarkComparison.passed
+                                ? Icons.check_circle
+                                : Icons.cancel,
+                            color: benchmarkComparison.passed
+                                ? Colors.green
+                                : Colors.red,
+                            size: 24,
+                          ),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: Text(
+                              benchmarkComparison.passed
+                                  ? 'Presidential Fitness: PASSED ✅'
+                                  : 'Presidential Fitness: NOT MET ❌',
+                              style: TextStyle(
+                                fontSize: 16,
+                                fontWeight: FontWeight.bold,
+                                color: benchmarkComparison.passed
+                                    ? Colors.green[700]
+                                    : Colors.red[700],
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 8),
+                      Text(
+                        benchmarkComparison.passed
+                            ? 'Great job! You exceeded the benchmark by ${benchmarkComparison.differenceText}!'
+                            : 'You need ${benchmarkComparison.differenceText} more to meet the Presidential Fitness Test standard.',
+                        style: TextStyle(
+                          fontSize: 13,
+                          color: theme.colorScheme.onSurface
+                              .withValues(alpha: 0.7),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 16),
+              ],
+
               // Form Quality Section
               Container(
                 padding: const EdgeInsets.all(16),
@@ -2277,6 +2496,225 @@ class _FitnessScreenState extends State<FitnessScreen> {
         duration: const Duration(seconds: 4),
       ),
     );
+  }
+
+  /// Show dialog to configure age and gender for Presidential Fitness Test
+  Future<void> _showConfigureProfileDialog() async {
+    final theme = Theme.of(context);
+    int? selectedAge = _userAge;
+    Gender? selectedGender = _userGender;
+
+    final result = await showDialog<Map<String, dynamic>>(
+      context: context,
+      builder: (context) => StatefulBuilder(
+        builder: (context, setState) => AlertDialog(
+          title: Row(
+            children: [
+              Icon(Icons.emoji_events, color: theme.colorScheme.primary),
+              const SizedBox(width: 12),
+              const Expanded(
+                child: Text('Presidential Fitness Test Setup'),
+              ),
+            ],
+          ),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text(
+                'Set your age and gender to see how you compare to Presidential Fitness Test standards!',
+                style: TextStyle(fontSize: 14),
+              ),
+              const SizedBox(height: 20),
+
+              // Age Selection
+              Text(
+                'Age',
+                style: theme.textTheme.titleSmall?.copyWith(
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+              const SizedBox(height: 8),
+              DropdownButtonFormField<int>(
+                value: selectedAge,
+                decoration: InputDecoration(
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  contentPadding: const EdgeInsets.symmetric(
+                    horizontal: 12,
+                    vertical: 8,
+                  ),
+                ),
+                hint: const Text('Select your age'),
+                items: List.generate(12, (index) => index + 6)
+                    .map((age) => DropdownMenuItem(
+                          value: age,
+                          child: Text('$age years'),
+                        ))
+                    .toList(),
+                onChanged: (value) {
+                  setState(() => selectedAge = value);
+                },
+              ),
+              const SizedBox(height: 16),
+
+              // Gender Selection
+              Text(
+                'Gender',
+                style: theme.textTheme.titleSmall?.copyWith(
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+              const SizedBox(height: 8),
+              DropdownButtonFormField<Gender>(
+                value: selectedGender,
+                decoration: InputDecoration(
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  contentPadding: const EdgeInsets.symmetric(
+                    horizontal: 12,
+                    vertical: 8,
+                  ),
+                ),
+                hint: const Text('Select your gender'),
+                items: const [
+                  DropdownMenuItem(
+                    value: Gender.male,
+                    child: Text('Male'),
+                  ),
+                  DropdownMenuItem(
+                    value: Gender.female,
+                    child: Text('Female'),
+                  ),
+                ],
+                onChanged: (value) {
+                  setState(() => selectedGender = value);
+                },
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text('Cancel'),
+            ),
+            FilledButton(
+              onPressed: selectedAge != null && selectedGender != null
+                  ? () => Navigator.pop(context, {
+                        'age': selectedAge,
+                        'gender': selectedGender,
+                      })
+                  : null,
+              child: const Text('Save'),
+            ),
+          ],
+        ),
+      ),
+    );
+
+    if (result != null) {
+      await _userPrefsService.saveAge(result['age']);
+      await _userPrefsService.saveGender(result['gender']);
+      await _loadUserData();
+      _showSuccess(
+          'Profile configured! Presidential Fitness Test benchmarks are now active.');
+    }
+  }
+
+  /// Build benchmark info widgets for display under rep counter
+  List<Widget> _buildBenchmarkInfo({bool isVideoView = false}) {
+    final repCount = _repCounter?.repCount ?? 0;
+    if (repCount == 0) return [];
+
+    BenchmarkComparison? comparison;
+
+    if (_selectedExercise == ExerciseType.sitUp) {
+      comparison = PresidentialFitnessBenchmarks.compareSitUps(
+        reps: repCount,
+        age: _userAge!,
+        gender: _userGender!,
+      );
+    } else if (_selectedExercise == ExerciseType.pullUp) {
+      comparison = PresidentialFitnessBenchmarks.comparePullUps(
+        reps: repCount,
+        age: _userAge!,
+        gender: _userGender!,
+      );
+    } else if (_selectedExercise == ExerciseType.pushUp) {
+      // Push-ups don't have a benchmark in Presidential Fitness Test
+      return [];
+    }
+
+    if (comparison == null) return [];
+
+    final theme = Theme.of(context);
+    final onColor = isVideoView
+        ? theme.colorScheme.onTertiary
+        : theme.colorScheme.onPrimary;
+
+    return [
+      const SizedBox(height: 12),
+      Container(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+        decoration: BoxDecoration(
+          color: comparison.passed
+              ? Colors.green.withValues(alpha: 0.3)
+              : Colors.red.withValues(alpha: 0.3),
+          borderRadius: BorderRadius.circular(8),
+          border: Border.all(
+            color: comparison.passed
+                ? Colors.green.withValues(alpha: 0.5)
+                : Colors.red.withValues(alpha: 0.5),
+            width: 2,
+          ),
+        ),
+        child: Column(
+          children: [
+            Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(
+                  comparison.passed ? Icons.check_circle : Icons.cancel,
+                  color: onColor,
+                  size: 16,
+                ),
+                const SizedBox(width: 8),
+                Text(
+                  comparison.passed ? 'PASSED!' : 'NOT MET',
+                  style: TextStyle(
+                    color: onColor,
+                    fontSize: 14,
+                    fontWeight: FontWeight.bold,
+                    letterSpacing: 1,
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 4),
+            Text(
+              comparison.passed
+                  ? '+${comparison.differenceText} above'
+                  : '${comparison.differenceText} needed',
+              style: TextStyle(
+                color: onColor.withValues(alpha: 0.9),
+                fontSize: 12,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+            Text(
+              'Presidential Fitness Test',
+              style: TextStyle(
+                color: onColor.withValues(alpha: 0.7),
+                fontSize: 10,
+                fontWeight: FontWeight.w500,
+              ),
+            ),
+          ],
+        ),
+      ),
+    ];
   }
 
   Widget _buildFlexibilityMetricsOverlay() {
