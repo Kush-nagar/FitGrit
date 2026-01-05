@@ -16,17 +16,17 @@ enum CustomBottomBarItem {
     activeIcon: Icons.fitness_center,
     label: 'Fitness',
   ),
-  profile(
-    route: '/user-profile-screen',
-    icon: Icons.person_outline,
-    activeIcon: Icons.person,
-    label: 'Profile',
-  ),
   wellness(
     route: '/wellness-screen',
     icon: Icons.psychology_outlined,
     activeIcon: Icons.psychology,
     label: 'Wellness',
+  ),
+  profile(
+    route: '/user-profile-screen',
+    icon: Icons.person_outline,
+    activeIcon: Icons.person,
+    label: 'Profile',
   );
 
   const CustomBottomBarItem({

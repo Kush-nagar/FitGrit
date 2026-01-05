@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import 'package:sizer/sizer.dart';
+import 'package:intl/intl.dart';
 
 import '../../theme/theme_provider.dart';
 import '../../widgets/custom_bottom_bar.dart';
@@ -11,6 +12,8 @@ import './widgets/goals_section_widget.dart';
 import './widgets/preferences_section_widget.dart';
 import './widgets/privacy_section_widget.dart';
 import './widgets/profile_header_widget.dart';
+import '../../services/onboarding_service.dart';
+import '../../models/user_onboarding_model.dart';
 
 /// User Profile Screen - Manages personal settings and app preferences
 ///
@@ -30,6 +33,10 @@ class UserProfileScreen extends StatefulWidget {
 }
 
 class _UserProfileScreenState extends State<UserProfileScreen> {
+  final OnboardingService _onboardingService = OnboardingService();
+  UserOnboardingModel? _onboardingData;
+  bool _isLoading = true;
+
   // User profile data
   final Map<String, dynamic> _userData = {
     "name": "Sarah Johnson",
@@ -57,6 +64,65 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
   bool _notificationsEnabled = true;
   bool _useMetricUnits = false;
   String _selectedTheme = "Dark";
+
+  @override
+  void initState() {
+    super.initState();
+    _loadOnboardingData();
+  }
+
+  Future<void> _loadOnboardingData() async {
+    try {
+      final data = await _onboardingService.getOnboardingData();
+      if (mounted) {
+        setState(() {
+          _onboardingData = data;
+          _isLoading = false;
+
+          // Update user data with onboarding data if available
+          if (data != null) {
+            _userData['name'] = data.name;
+            _userData['age'] = data.age;
+            _userData['height'] = '${data.heightCm.toInt()} cm';
+            _userData['weight'] = '${data.weightKg.toStringAsFixed(1)} kg';
+            _userData['calorieTarget'] = data.recommendedDailyCalories ?? 2000;
+            _userData['waterIntakeGoal'] =
+                (data.recommendedWaterIntakeGlasses ?? 8) *
+                    0.25; // Convert glasses to liters
+
+            // Set weight goal based on overall goal
+            switch (data.overallGoal) {
+              case OverallGoal.loseWeight:
+                _userData['weightGoal'] = 'Lose Weight';
+                break;
+              case OverallGoal.gainMuscle:
+                _userData['weightGoal'] = 'Gain Muscle';
+                break;
+              case OverallGoal.maintain:
+                _userData['weightGoal'] = 'Maintain Weight';
+                break;
+              case OverallGoal.mentalWellbeing:
+                _userData['weightGoal'] = 'Focus on Wellbeing';
+                break;
+            }
+
+            // Update dietary preferences based on onboarding
+            if (data.dietType != null) {
+              _isVegetarian = data.dietType == DietType.vegetarian;
+              _isVegan = data.dietType == DietType.vegan;
+              _isGlutenFree = data.dietType == DietType.glutenFree;
+              _isDairyFree = data.dietType == DietType.dairyFree;
+            }
+          }
+        });
+      }
+    } catch (e) {
+      print('Error loading onboarding data: $e');
+      if (mounted) {
+        setState(() => _isLoading = false);
+      }
+    }
+  }
 
   @override
   void didChangeDependencies() {
@@ -404,6 +470,241 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
     );
   }
 
+  Widget _buildOnboardingInfoSection() {
+    final theme = Theme.of(context);
+    final data = _onboardingData!;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          'Profile Information',
+          style: theme.textTheme.titleMedium?.copyWith(
+            fontWeight: FontWeight.w600,
+          ),
+        ),
+        SizedBox(height: 1.h),
+        Container(
+          decoration: BoxDecoration(
+            color: theme.colorScheme.surface,
+            borderRadius: BorderRadius.circular(12),
+          ),
+          child: Column(
+            children: [
+              _buildInfoRow('Gender',
+                  data.gender[0].toUpperCase() + data.gender.substring(1)),
+              _buildDivider(),
+              _buildInfoRow('Age', '${data.age} years'),
+              _buildDivider(),
+              _buildInfoRow('Height', '${data.heightCm.toInt()} cm'),
+              _buildDivider(),
+              _buildInfoRow('Weight', '${data.weightKg.toStringAsFixed(1)} kg'),
+              _buildDivider(),
+              _buildInfoRow('Birthdate',
+                  DateFormat('MMM dd, yyyy').format(data.birthdate)),
+              _buildDivider(),
+              _buildInfoRow('Overall Goal', _getGoalString(data.overallGoal)),
+              _buildDivider(),
+              _buildInfoRow(
+                  'Time Horizon', _getTimeHorizonString(data.timeHorizon)),
+              _buildDivider(),
+              _buildInfoRow('Activity Level',
+                  _getActivityLevelString(data.activityLevel)),
+              if (data.personType == PersonType.sportsPlayer) ...[
+                _buildDivider(),
+                _buildInfoRow('Person Type', 'Sports Player'),
+                if (data.sport != null && data.sport!.isNotEmpty) ...[
+                  _buildDivider(),
+                  _buildInfoRow('Sport', data.sport!),
+                ],
+              ],
+              if (data.exercisePreferences.isNotEmpty) ...[
+                _buildDivider(),
+                _buildInfoRow('Exercise Preferences',
+                    data.exercisePreferences.join(', ')),
+              ],
+              if (data.equipment.isNotEmpty) ...[
+                _buildDivider(),
+                _buildInfoRow('Equipment', data.equipment.join(', ')),
+              ],
+              if (data.dietType != null && data.dietType != DietType.none) ...[
+                _buildDivider(),
+                _buildInfoRow('Diet Type', _getDietTypeString(data.dietType!)),
+              ],
+              if (data.allergies.isNotEmpty) ...[
+                _buildDivider(),
+                _buildInfoRow('Allergies', data.allergies.join(', '),
+                    isWarning: true),
+              ],
+              if (data.dislikes.isNotEmpty) ...[
+                _buildDivider(),
+                _buildInfoRow('Dislikes', data.dislikes.join(', ')),
+              ],
+            ],
+          ),
+        ),
+        if (data.recommendedDailyCalories != null ||
+            data.recommendedWaterIntakeGlasses != null) ...[
+          SizedBox(height: 2.h),
+          Text(
+            'Goals & AI Recommendations',
+            style: theme.textTheme.titleMedium?.copyWith(
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+          SizedBox(height: 1.h),
+          Container(
+            decoration: BoxDecoration(
+              color: theme.colorScheme.surface,
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: Column(
+              children: [
+                if (data.recommendedDailyCalories != null) ...[
+                  _buildInfoRow(
+                    'Daily Calorie Goal',
+                    '${data.recommendedDailyCalories} cal',
+                    icon: Icons.local_fire_department,
+                  ),
+                ],
+                if (data.recommendedDailyCalories != null &&
+                    data.recommendedWaterIntakeGlasses != null)
+                  _buildDivider(),
+                if (data.recommendedWaterIntakeGlasses != null) ...[
+                  _buildInfoRow(
+                    'Water Intake Goal',
+                    '${data.recommendedWaterIntakeGlasses} glasses (${(data.recommendedWaterIntakeGlasses! * 0.25).toStringAsFixed(1)}L)',
+                    icon: Icons.water_drop,
+                  ),
+                ],
+              ],
+            ),
+          ),
+        ],
+      ],
+    );
+  }
+
+  Widget _buildInfoRow(String label, String value,
+      {bool isWarning = false, IconData? icon}) {
+    final theme = Theme.of(context);
+
+    return Padding(
+      padding: EdgeInsets.symmetric(horizontal: 4.w, vertical: 2.h),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          if (icon != null) ...[
+            Icon(
+              icon,
+              size: 20,
+              color: theme.colorScheme.primary,
+            ),
+            SizedBox(width: 2.w),
+          ],
+          Expanded(
+            flex: 2,
+            child: Text(
+              label,
+              style: theme.textTheme.bodyMedium?.copyWith(
+                color: theme.colorScheme.onSurfaceVariant,
+              ),
+            ),
+          ),
+          SizedBox(width: 2.w),
+          Expanded(
+            flex: 3,
+            child: Text(
+              value,
+              style: theme.textTheme.bodyMedium?.copyWith(
+                fontWeight: FontWeight.w600,
+                color: isWarning ? theme.colorScheme.error : null,
+              ),
+              textAlign: TextAlign.end,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildDivider() {
+    return Padding(
+      padding: EdgeInsets.symmetric(horizontal: 4.w),
+      child: const Divider(height: 1),
+    );
+  }
+
+  String _getGoalString(OverallGoal goal) {
+    switch (goal) {
+      case OverallGoal.loseWeight:
+        return 'Lose Weight';
+      case OverallGoal.gainMuscle:
+        return 'Gain Muscle';
+      case OverallGoal.maintain:
+        return 'Maintain Weight';
+      case OverallGoal.mentalWellbeing:
+        return 'Mental Wellbeing';
+    }
+  }
+
+  String _getTimeHorizonString(TimeHorizon horizon) {
+    switch (horizon) {
+      case TimeHorizon.oneMonth:
+        return '1 Month';
+      case TimeHorizon.threeMonths:
+        return '3 Months';
+      case TimeHorizon.sixMonths:
+        return '6 Months';
+      case TimeHorizon.oneYear:
+        return '1 Year';
+      case TimeHorizon.longTerm:
+        return 'Long Term (1+ years)';
+    }
+  }
+
+  String _getActivityLevelString(ActivityLevel level) {
+    switch (level) {
+      case ActivityLevel.sedentary:
+        return 'Sedentary';
+      case ActivityLevel.lightlyActive:
+        return 'Lightly Active';
+      case ActivityLevel.moderatelyActive:
+        return 'Moderately Active';
+      case ActivityLevel.veryActive:
+        return 'Very Active';
+      case ActivityLevel.extremelyActive:
+        return 'Extremely Active';
+    }
+  }
+
+  String _getDietTypeString(DietType diet) {
+    switch (diet) {
+      case DietType.none:
+        return 'None';
+      case DietType.vegetarian:
+        return 'Vegetarian';
+      case DietType.vegan:
+        return 'Vegan';
+      case DietType.keto:
+        return 'Ketogenic';
+      case DietType.paleo:
+        return 'Paleo';
+      case DietType.mediterranean:
+        return 'Mediterranean';
+      case DietType.lowCarb:
+        return 'Low Carb';
+      case DietType.lowFat:
+        return 'Low Fat';
+      case DietType.glutenFree:
+        return 'Gluten Free';
+      case DietType.dairyFree:
+        return 'Dairy Free';
+      case DietType.other:
+        return 'Other';
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
@@ -434,27 +735,11 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
               ),
               SizedBox(height: 3.h),
 
-              // Account Information
-              AccountSectionWidget(
-                age: _userData["age"] as int,
-                height: _userData["height"] as String,
-                weight: _userData["weight"] as String,
-                onEditAge: _handleEditAge,
-                onEditHeight: _handleEditHeight,
-                onEditWeight: _handleEditWeight,
-              ),
-              SizedBox(height: 3.h),
-
-              // Goals
-              GoalsSectionWidget(
-                calorieTarget: _userData["calorieTarget"] as int,
-                waterIntakeGoal: _userData["waterIntakeGoal"] as double,
-                weightGoal: _userData["weightGoal"] as String,
-                onEditCalorieTarget: _handleEditCalorieTarget,
-                onEditWaterGoal: _handleEditWaterGoal,
-                onEditWeightGoal: _handleEditWeightGoal,
-              ),
-              SizedBox(height: 3.h),
+              // Onboarding Information (if available)
+              if (_onboardingData != null) ...[
+                _buildOnboardingInfoSection(),
+                SizedBox(height: 3.h),
+              ],
 
               // Dietary Preferences
               PreferencesSectionWidget(

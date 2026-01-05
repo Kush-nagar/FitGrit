@@ -340,6 +340,60 @@ Return nothing else than the JSON object.
     };
   }
 
+  /// Get text recommendations from Gemini (for onboarding, nutrition advice, etc.)
+  Future<String> getTextRecommendations(String prompt) async {
+    final body = {
+      "contents": [
+        {
+          "parts": [
+            {"text": prompt},
+          ],
+        },
+      ],
+    };
+
+    final uri = Uri.parse(
+      'https://generativelanguage.googleapis.com/v1beta/models/$model:generateContent',
+    );
+
+    final headers = {
+      'Content-Type': 'application/json',
+      'x-goog-api-key': apiKey,
+    };
+
+    final resp = await http.post(uri, headers: headers, body: jsonEncode(body));
+
+    if (resp.statusCode != 200) {
+      String errorMessage = 'Gemini API error ${resp.statusCode}';
+      try {
+        final errorData = jsonDecode(resp.body);
+        if (errorData['error'] != null &&
+            errorData['error']['message'] != null) {
+          errorMessage = errorData['error']['message'];
+
+          if (resp.statusCode == 403) {
+            errorMessage =
+                'API access denied. Please enable the Generative Language API in Google Cloud Console.';
+          } else if (resp.statusCode == 429) {
+            errorMessage = 'API quota exceeded. Please try again later.';
+          } else if (resp.statusCode == 401) {
+            errorMessage = 'Invalid API key. Please check your Gemini API key.';
+          }
+        }
+      } catch (_) {}
+      throw Exception(errorMessage);
+    }
+
+    final decoded = jsonDecode(resp.body) as Map<String, dynamic>;
+    final modelText = _extractText(decoded);
+
+    if (modelText.isEmpty) {
+      throw Exception('No text returned by Gemini: ${resp.body}');
+    }
+
+    return modelText;
+  }
+
   Future<List<Map<String, dynamic>>> generateRecipesFromIngredients(
     List<String> ingredients, {
     int maxRecipes = 8,

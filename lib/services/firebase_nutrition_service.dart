@@ -1,5 +1,8 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../core/models/nutrition_info.dart';
+import './onboarding_service.dart';
+import './water_intake_service.dart';
+import '../models/user_onboarding_model.dart';
 
 /// Firebase service for storing and retrieving daily nutrition data
 ///
@@ -358,6 +361,60 @@ class FirebaseNutritionService {
 
   /// Get daily goals
   Future<Map<String, dynamic>> getDailyGoals() async {
+    // First try to get goals from onboarding service
+    final onboardingService = OnboardingService();
+    final waterService = WaterIntakeService();
+
+    final dailyCalories = await onboardingService.getDailyCalorieGoal();
+    final targetWater = await waterService.getTargetGlasses();
+
+    // Check if user has completed onboarding for personalized goals
+    final hasOnboarding = await onboardingService.hasCompletedOnboarding();
+
+    if (hasOnboarding) {
+      // Use personalized goals from onboarding
+      final onboardingData = await onboardingService.getOnboardingData();
+
+      // Calculate macros based on calorie goal and overall goal
+      double targetProtein = 150.0;
+      double targetCarbs = 200.0;
+      double targetFat = 70.0;
+
+      if (onboardingData != null) {
+        // Adjust macros based on goal
+        switch (onboardingData.overallGoal) {
+          case OverallGoal.loseWeight:
+            // Higher protein, lower carbs for weight loss
+            targetProtein = (dailyCalories * 0.30) / 4; // 30% protein, 4 cal/g
+            targetCarbs = (dailyCalories * 0.40) / 4; // 40% carbs
+            targetFat = (dailyCalories * 0.30) / 9; // 30% fat, 9 cal/g
+            break;
+          case OverallGoal.gainMuscle:
+            // Higher protein and carbs for muscle gain
+            targetProtein = (dailyCalories * 0.30) / 4; // 30% protein
+            targetCarbs = (dailyCalories * 0.45) / 4; // 45% carbs
+            targetFat = (dailyCalories * 0.25) / 9; // 25% fat
+            break;
+          case OverallGoal.maintain:
+          case OverallGoal.mentalWellbeing:
+            // Balanced macros
+            targetProtein = (dailyCalories * 0.25) / 4; // 25% protein
+            targetCarbs = (dailyCalories * 0.45) / 4; // 45% carbs
+            targetFat = (dailyCalories * 0.30) / 9; // 30% fat
+            break;
+        }
+      }
+
+      return {
+        'targetCalories': dailyCalories.toDouble(),
+        'targetProtein': targetProtein,
+        'targetCarbs': targetCarbs,
+        'targetFat': targetFat,
+        'targetWaterGlasses': targetWater,
+      };
+    }
+
+    // Fallback to Firebase or default goals if no onboarding data
     final goalsRef = _firestore
         .collection('users')
         .doc(userId)
@@ -369,21 +426,21 @@ class FirebaseNutritionService {
     if (!doc.exists) {
       // Return default goals
       return {
-        'targetCalories': 2000.0,
+        'targetCalories': dailyCalories.toDouble(),
         'targetProtein': 150.0,
         'targetCarbs': 200.0,
         'targetFat': 70.0,
-        'targetWaterGlasses': 8,
+        'targetWaterGlasses': targetWater,
       };
     }
 
     final data = doc.data()!;
     return {
-      'targetCalories': (data['targetCalories'] ?? 2000.0).toDouble(),
+      'targetCalories': (data['targetCalories'] ?? dailyCalories).toDouble(),
       'targetProtein': (data['targetProtein'] ?? 150.0).toDouble(),
       'targetCarbs': (data['targetCarbs'] ?? 200.0).toDouble(),
       'targetFat': (data['targetFat'] ?? 70.0).toDouble(),
-      'targetWaterGlasses': (data['targetWaterGlasses'] ?? 8) as int,
+      'targetWaterGlasses': (data['targetWaterGlasses'] ?? targetWater) as int,
     };
   }
 

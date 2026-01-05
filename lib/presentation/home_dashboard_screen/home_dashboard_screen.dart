@@ -5,12 +5,16 @@ import 'package:sizer/sizer.dart';
 
 import '../../core/app_export.dart';
 import '../../services/firebase_nutrition_service.dart';
+import '../../services/firebase_fitness_service.dart';
+import '../../services/user_preferences_service.dart';
+import '../../services/presidential_fitness_benchmarks.dart';
 import '../../widgets/custom_app_bar.dart';
 import '../../widgets/custom_bottom_bar.dart';
 import './widgets/daily_calorie_card_widget.dart';
 import './widgets/quick_actions_widget.dart';
 import './widgets/recent_meals_section_widget.dart';
 import './widgets/water_intake_card_widget.dart';
+import './widgets/fitness_graph_carousel_widget.dart';
 
 /// Home Dashboard Screen
 ///
@@ -35,8 +39,15 @@ class _HomeDashboardScreenState extends State<HomeDashboardScreen>
   int _targetWaterGlasses = 8;
   List<Map<String, dynamic>> _loggedFoods = [];
   bool _isLoading = true;
+  Map<String, WeeklyFitnessData> _weeklyFitnessData = {};
+  bool _isLoadingFitness = true;
+  int? _userAge;
+  Gender? _userGender;
 
   final FirebaseNutritionService _firebaseService = FirebaseNutritionService();
+  final FirebaseFitnessService _firebaseFitnessService =
+      FirebaseFitnessService();
+  final UserPreferencesService _userPrefsService = UserPreferencesService();
 
   late AnimationController _animationController;
   late Animation<double> _fadeAnimation;
@@ -68,6 +79,15 @@ class _HomeDashboardScreenState extends State<HomeDashboardScreen>
     );
 
     _animationController.forward();
+
+    // Load user preferences first, then fitness data with benchmark info
+    _initializeData();
+  }
+
+  /// Initialize data by loading preferences first, then fitness data
+  Future<void> _initializeData() async {
+    await _loadUserPreferences();
+    await _loadWeeklyFitnessData();
   }
 
   @override
@@ -85,6 +105,44 @@ class _HomeDashboardScreenState extends State<HomeDashboardScreen>
   }
 
   /// Load daily nutrition and water data from Firebase for selected date
+  Future<void> _loadUserPreferences() async {
+    try {
+      final age = await _userPrefsService.getAge();
+      final gender = await _userPrefsService.getGender();
+      setState(() {
+        _userAge = age;
+        _userGender = gender;
+      });
+      print('✅ Loaded user preferences: Age=$_userAge, Gender=$_userGender');
+    } catch (e) {
+      print('Error loading user preferences: \$e');
+    }
+  }
+
+  Future<void> _loadWeeklyFitnessData() async {
+    try {
+      setState(() => _isLoadingFitness = true);
+      print('📊 Loading fitness data with Age=$_userAge, Gender=$_userGender');
+      final data = await _firebaseFitnessService.getWeeklyFitnessData(
+        userAge: _userAge,
+        userGender: _userGender,
+      );
+      setState(() {
+        _weeklyFitnessData = data;
+        _isLoadingFitness = false;
+      });
+      print('✅ Loaded ${data.length} exercise types with benchmarks');
+      // Debug: Print benchmark values
+      data.forEach((key, value) {
+        print(
+            '  - $key: benchmark=${value.benchmarkValue}, hasData=${value.hasData}');
+      });
+    } catch (e) {
+      print('Error loading weekly fitness data: \$e');
+      setState(() => _isLoadingFitness = false);
+    }
+  }
+
   Future<void> _loadDailyData() async {
     setState(() {
       _isLoading = true;
@@ -895,6 +953,17 @@ service cloud.firestore {
                           Navigator.pushNamed(context, '/user-profile-screen'),
                     ),
                   ),
+
+                  // Fitness Graph Carousel
+                  if (!_isLoadingFitness && _weeklyFitnessData.isNotEmpty)
+                    _buildAnimatedCard(
+                      delay: 150,
+                      child: FitnessGraphCarouselWidget(
+                        weeklyData: _weeklyFitnessData,
+                        onTap: () =>
+                            Navigator.pushNamed(context, '/fitness-screen'),
+                      ),
+                    ),
 
                   SizedBox(height: 1.h),
 

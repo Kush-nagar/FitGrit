@@ -12,10 +12,14 @@ import '../presentation/recipe_details_screen/recipe_details_screen.dart';
 import '../presentation/running_history_screen/running_history_screen.dart';
 import '../presentation/running_details_screen/running_details_screen.dart';
 import '../presentation/wellness_screen/wellness_screen.dart';
+import '../presentation/screens/splash_screen.dart';
+import '../presentation/screens/onboarding_screen.dart';
 
 class AppRoutes {
   // TODO: Add your routes here
   static const String initial = '/';
+  static const String splash = '/splash';
+  static const String onboarding = '/onboarding';
   static const String foodLogHistory = '/food-log-history-screen';
   static const String recipeSuggestions = '/recipe-suggestions-screen';
   static const String userProfile = '/user-profile-screen';
@@ -31,7 +35,9 @@ class AppRoutes {
   static const String wellness = '/wellness-screen';
 
   static Map<String, WidgetBuilder> routes = {
-    initial: (context) => const HomeDashboardScreen(),
+    initial: (context) => const SplashScreen(),
+    splash: (context) => const SplashScreen(),
+    onboarding: (context) => const OnboardingScreen(),
     foodLogHistory: (context) => const FoodLogHistoryScreen(),
     recipeSuggestions: (context) => const RecipeSuggestionsScreen(),
     userProfile: (context) => const UserProfileScreen(),

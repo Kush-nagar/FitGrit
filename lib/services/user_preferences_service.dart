@@ -84,6 +84,20 @@ class UserPreferencesService {
     return age != null && gender != null;
   }
 
+  /// Get all user preferences as a map
+  Future<Map<String, dynamic>> getUserPreferences() async {
+    final age = await getAge();
+    final gender = await getGender();
+    final name = await getName();
+    return {
+      'age': age,
+      'gender': gender == Gender.male
+          ? 'male'
+          : (gender == Gender.female ? 'female' : null),
+      'name': name,
+    };
+  }
+
   /// Clear all user preferences
   Future<bool> clearAll() async {
     try {

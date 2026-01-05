@@ -375,4 +375,171 @@ class FirebaseFitnessService {
       };
     }
   }
+
+  /// Get fitness data for the past week grouped by exercise type
+  /// Returns a map of exercise types to their daily values and benchmarks
+  Future<Map<String, WeeklyFitnessData>> getWeeklyFitnessData({
+    int? userAge,
+    Gender? userGender,
+  }) async {
+    try {
+      // Get data from the past 7 days
+      final now = DateTime.now();
+      final startOfWeek = DateTime(now.year, now.month, now.day)
+          .subtract(const Duration(days: 6));
+
+      final snapshot = await _firestore
+          .collection('users')
+          .doc(userId)
+          .collection('fitness_analyses')
+          .where('date',
+              isGreaterThanOrEqualTo: Timestamp.fromDate(startOfWeek))
+          .where('date', isLessThanOrEqualTo: Timestamp.fromDate(now))
+          .orderBy('date', descending: false)
+          .get();
+
+      // Initialize map for all exercise types
+      final Map<String, WeeklyFitnessData> weeklyData = {};
+
+      // Process each exercise type
+      for (final exerciseType in [
+        ExerciseType.pushUp,
+        ExerciseType.pullUp,
+        ExerciseType.sitUp,
+        ExerciseType.shuttleRun,
+        ExerciseType.vSitAndReach,
+      ]) {
+        final exerciseTypeStr = exerciseType.toString().split('.').last;
+
+        // Initialize daily values (7 days)
+        final List<double?> dailyValues = List.filled(7, null);
+
+        // Get benchmark value
+        double? benchmarkValue;
+        if (userAge != null && userGender != null) {
+          benchmarkValue = PresidentialFitnessBenchmarks.getBenchmark(
+            exerciseType: exerciseType,
+            age: userAge,
+            gender: userGender,
+          );
+        }
+
+        // Fill in data for each day
+        for (final doc in snapshot.docs) {
+          final data = doc.data();
+          final docExerciseType = data['exerciseType'] as String?;
+
+          if (docExerciseType == exerciseTypeStr) {
+            final timestamp = data['date'] as Timestamp?;
+            if (timestamp != null) {
+              final date = timestamp.toDate();
+              final dayIndex = date.difference(startOfWeek).inDays;
+
+              if (dayIndex >= 0 && dayIndex < 7) {
+                // Get the performance value based on exercise type
+                double? value;
+                if (exerciseType == ExerciseType.pushUp ||
+                    exerciseType == ExerciseType.pullUp ||
+                    exerciseType == ExerciseType.sitUp) {
+                  value = (data['reps'] as int?)?.toDouble();
+                } else if (exerciseType == ExerciseType.shuttleRun) {
+                  // For shuttle run, use average time per run
+                  value = (data['averageRunTime'] as num?)?.toDouble();
+                } else if (exerciseType == ExerciseType.vSitAndReach) {
+                  // For flexibility, use max reach distance in inches
+                  final reachCm =
+                      (data['maxReachDistance'] as num?)?.toDouble();
+                  if (reachCm != null) {
+                    value = PresidentialFitnessBenchmarks.cmToInches(reachCm);
+                  }
+                }
+
+                // If multiple entries for same day, keep the best one
+                if (value != null) {
+                  if (dailyValues[dayIndex] == null) {
+                    dailyValues[dayIndex] = value;
+                  } else {
+                    // For shuttle run, lower is better
+                    if (exerciseType == ExerciseType.shuttleRun) {
+                      dailyValues[dayIndex] = value < dailyValues[dayIndex]!
+                          ? value
+                          : dailyValues[dayIndex];
+                    } else {
+                      // For others, higher is better
+                      dailyValues[dayIndex] = value > dailyValues[dayIndex]!
+                          ? value
+                          : dailyValues[dayIndex];
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+
+        weeklyData[exerciseTypeStr] = WeeklyFitnessData(
+          exerciseType: exerciseType,
+          dailyValues: dailyValues,
+          benchmarkValue: benchmarkValue,
+          unit: _getUnitForExercise(exerciseType),
+        );
+      }
+
+      return weeklyData;
+    } catch (e) {
+      print('❌ Error fetching weekly fitness data: $e');
+      return {};
+    }
+  }
+
+  /// Get unit label for exercise type
+  String _getUnitForExercise(ExerciseType exerciseType) {
+    switch (exerciseType) {
+      case ExerciseType.pushUp:
+      case ExerciseType.pullUp:
+      case ExerciseType.sitUp:
+        return 'reps';
+      case ExerciseType.shuttleRun:
+        return 'seconds';
+      case ExerciseType.vSitAndReach:
+      case ExerciseType.sitAndReach:
+        return 'inches';
+      default:
+        return '';
+    }
+  }
+}
+
+/// Weekly fitness data model
+class WeeklyFitnessData {
+  final ExerciseType exerciseType;
+  final List<double?> dailyValues; // 7 days, null if no data
+  final double? benchmarkValue;
+  final String unit;
+
+  WeeklyFitnessData({
+    required this.exerciseType,
+    required this.dailyValues,
+    this.benchmarkValue,
+    required this.unit,
+  });
+
+  String get exerciseName {
+    switch (exerciseType) {
+      case ExerciseType.pushUp:
+        return 'Push Ups';
+      case ExerciseType.pullUp:
+        return 'Pull Ups';
+      case ExerciseType.sitUp:
+        return 'Sit Ups';
+      case ExerciseType.shuttleRun:
+        return 'Shuttle Run';
+      case ExerciseType.vSitAndReach:
+        return 'V-Sit & Reach';
+      default:
+        return '';
+    }
+  }
+
+  bool get hasData => dailyValues.any((value) => value != null);
 }
