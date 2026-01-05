@@ -21,6 +21,12 @@ enum CustomBottomBarItem {
     icon: Icons.person_outline,
     activeIcon: Icons.person,
     label: 'Profile',
+  ),
+  wellness(
+    route: '/wellness-screen',
+    icon: Icons.psychology_outlined,
+    activeIcon: Icons.psychology,
+    label: 'Wellness',
   );
 
   const CustomBottomBarItem({

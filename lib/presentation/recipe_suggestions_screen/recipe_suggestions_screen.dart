@@ -475,6 +475,7 @@ class _RecipeSuggestionsScreenState extends State<RecipeSuggestionsScreen>
     final theme = Theme.of(context);
 
     return Scaffold(
+      backgroundColor: theme.scaffoldBackgroundColor,
       appBar: CustomAppBar(
         variant: CustomAppBarVariant.standard,
         title: 'Recipes',

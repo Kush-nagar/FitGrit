@@ -621,7 +621,7 @@ class _RunningHistoryScreenState extends State<RunningHistoryScreen> {
     final theme = Theme.of(context);
 
     return Scaffold(
-      backgroundColor: theme.colorScheme.surface,
+      backgroundColor: theme.scaffoldBackgroundColor,
       appBar: CustomAppBar(
         variant: CustomAppBarVariant.standard,
         title: 'Running',

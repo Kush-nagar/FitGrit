@@ -71,7 +71,7 @@ class _RunningDetailsScreenState extends State<RunningDetailsScreen> {
     final theme = Theme.of(context);
 
     return Scaffold(
-      backgroundColor: theme.colorScheme.surface,
+      backgroundColor: theme.scaffoldBackgroundColor,
       appBar: CustomAppBar(
         variant: CustomAppBarVariant.standard,
         title: _activity?.name ?? 'Run Details',
