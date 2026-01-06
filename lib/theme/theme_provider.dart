@@ -5,8 +5,8 @@ import 'package:shared_preferences/shared_preferences.dart';
 class ThemeProvider extends ChangeNotifier {
   static const String _themePreferenceKey = 'theme_mode_preference';
 
-  ThemeMode _themeMode = ThemeMode.light;
-  bool _isDarkMode = false;
+  ThemeMode _themeMode = ThemeMode.dark;
+  bool _isDarkMode = true;
 
   ThemeProvider() {
     _loadThemeFromPreferences();
@@ -30,7 +30,7 @@ class ThemeProvider extends ChangeNotifier {
         notifyListeners();
       }
     } catch (e) {
-      // If loading fails, keep default light mode
+      // If loading fails, keep default dark mode
       debugPrint('Error loading theme preference: $e');
     }
   }

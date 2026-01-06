@@ -647,20 +647,29 @@ class _ShuttleRunDetailsScreenState extends State<ShuttleRunDetailsScreen> {
                     barTouchData: BarTouchData(
                       enabled: true,
                       touchTooltipData: BarTouchTooltipData(
-                        tooltipBorder: const BorderSide(
-                          color: Colors.transparent,
+                        getTooltipColor: (group) => theme
+                            .colorScheme.primaryContainer
+                            .withValues(alpha: 0.95),
+                        tooltipBorder: BorderSide(
+                          color:
+                              theme.colorScheme.outline.withValues(alpha: 0.3),
+                          width: 1,
                         ),
                         tooltipPadding: const EdgeInsets.symmetric(
                           horizontal: 12,
                           vertical: 8,
                         ),
                         getTooltipItem: (group, groupIndex, rod, rodIndex) {
+                          final runNumber = group.x.toInt() + 1;
+                          final time = widget.metrics.runTimes[group.x.toInt()];
+
                           return BarTooltipItem(
-                            '${widget.metrics.runTimes[group.x.toInt()].toStringAsFixed(2)}s',
+                            'Run $runNumber\n${time.toStringAsFixed(2)}s',
                             TextStyle(
-                              color: theme.colorScheme.onPrimary,
+                              color: theme.colorScheme.onPrimaryContainer,
                               fontWeight: FontWeight.bold,
                               fontSize: 14,
+                              height: 1.3,
                             ),
                           );
                         },

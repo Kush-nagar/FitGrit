@@ -615,30 +615,85 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
     required OverallGoal goal,
   }) {
     final isSelected = _overallGoal == goal;
+    final theme = Theme.of(context);
+    final isDarkMode = theme.brightness == Brightness.dark;
 
-    return Card(
-      elevation: isSelected ? 4 : 1,
+    return Container(
       margin: const EdgeInsets.only(bottom: 12),
-      color:
-          isSelected ? Theme.of(context).primaryColor.withOpacity(0.1) : null,
-      child: ListTile(
-        leading: Icon(
-          icon,
-          color: isSelected ? Theme.of(context).primaryColor : Colors.grey,
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(8.0),
+        border: Border.all(
+          color: isSelected
+              ? const Color.fromRGBO(69, 197, 136, 1.0)
+              : Colors.grey.withOpacity(0.3),
+          width: isSelected ? 2.0 : 1.0,
         ),
-        title: Text(
-          title,
-          style: TextStyle(
-            fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+        color: isSelected
+            ? const Color.fromRGBO(69, 197, 136, 1.0)
+            : (isDarkMode ? const Color(0xFF2E2E2E) : Colors.white),
+      ),
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          borderRadius: BorderRadius.circular(8.0),
+          onTap: () {
+            setState(() => _overallGoal = goal);
+          },
+          child: Padding(
+            padding: const EdgeInsets.all(16.0),
+            child: Row(
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: isSelected
+                        ? Colors.black.withOpacity(0.15)
+                        : Colors.grey.withOpacity(0.1),
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: Icon(
+                    icon,
+                    size: 28,
+                    color: isSelected ? const Color(0xFF1C1C1C) : Colors.grey,
+                  ),
+                ),
+                const SizedBox(width: 16),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        title,
+                        style: TextStyle(
+                          fontSize: 16,
+                          fontWeight:
+                              isSelected ? FontWeight.bold : FontWeight.w500,
+                          color: isSelected ? const Color(0xFF1C1C1C) : null,
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        subtitle,
+                        style: TextStyle(
+                          fontSize: 13,
+                          color: isSelected
+                              ? const Color(0xFF1C1C1C).withOpacity(0.8)
+                              : Colors.grey[500],
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                if (isSelected)
+                  const Icon(
+                    Icons.check_circle,
+                    color: Color(0xFF1C1C1C),
+                    size: 28,
+                  ),
+              ],
+            ),
           ),
         ),
-        subtitle: Text(subtitle),
-        trailing: isSelected
-            ? Icon(Icons.check_circle, color: Theme.of(context).primaryColor)
-            : null,
-        onTap: () {
-          setState(() => _overallGoal = goal);
-        },
       ),
     );
   }
@@ -793,26 +848,70 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
     required ActivityLevel level,
   }) {
     final isSelected = _activityLevel == level;
+    final theme = Theme.of(context);
+    final isDarkMode = theme.brightness == Brightness.dark;
 
-    return Card(
-      elevation: isSelected ? 4 : 1,
+    return Container(
       margin: const EdgeInsets.only(bottom: 12),
-      color:
-          isSelected ? Theme.of(context).primaryColor.withOpacity(0.1) : null,
-      child: ListTile(
-        title: Text(
-          title,
-          style: TextStyle(
-            fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(8.0),
+        border: Border.all(
+          color: isSelected
+              ? const Color.fromRGBO(69, 197, 136, 1.0)
+              : Colors.grey.withOpacity(0.3),
+          width: isSelected ? 2.0 : 1.0,
+        ),
+        color: isSelected
+            ? const Color.fromRGBO(69, 197, 136, 1.0)
+            : (isDarkMode ? const Color(0xFF2E2E2E) : Colors.white),
+      ),
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          borderRadius: BorderRadius.circular(8.0),
+          onTap: () {
+            setState(() => _activityLevel = level);
+          },
+          child: Padding(
+            padding: const EdgeInsets.all(16.0),
+            child: Row(
+              children: [
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        title,
+                        style: TextStyle(
+                          fontSize: 16,
+                          fontWeight:
+                              isSelected ? FontWeight.bold : FontWeight.w500,
+                          color: isSelected ? const Color(0xFF1C1C1C) : null,
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        subtitle,
+                        style: TextStyle(
+                          fontSize: 13,
+                          color: isSelected
+                              ? const Color(0xFF1C1C1C).withOpacity(0.8)
+                              : Colors.grey[500],
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                if (isSelected)
+                  const Icon(
+                    Icons.check_circle,
+                    color: Color(0xFF1C1C1C),
+                    size: 28,
+                  ),
+              ],
+            ),
           ),
         ),
-        subtitle: Text(subtitle),
-        trailing: isSelected
-            ? Icon(Icons.check_circle, color: Theme.of(context).primaryColor)
-            : null,
-        onTap: () {
-          setState(() => _activityLevel = level);
-        },
       ),
     );
   }

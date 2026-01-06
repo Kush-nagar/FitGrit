@@ -53,34 +53,178 @@ class BenchmarkComparison {
 class PresidentialFitnessBenchmarks {
   // Boys (Male) Benchmarks
   static final Map<int, Map<String, double>> _boysBenchmarks = {
-    6: {'sitUps': 33, 'shuttleRun': 12.1, 'vSitReach': 3.5, 'pullUps': 2},
-    7: {'sitUps': 36, 'shuttleRun': 11.5, 'vSitReach': 3.5, 'pullUps': 4},
-    8: {'sitUps': 40, 'shuttleRun': 11.1, 'vSitReach': 3.0, 'pullUps': 5},
-    9: {'sitUps': 41, 'shuttleRun': 10.9, 'vSitReach': 3.0, 'pullUps': 5},
-    10: {'sitUps': 45, 'shuttleRun': 10.3, 'vSitReach': 4.0, 'pullUps': 6},
-    11: {'sitUps': 47, 'shuttleRun': 10.0, 'vSitReach': 4.0, 'pullUps': 6},
-    12: {'sitUps': 50, 'shuttleRun': 9.8, 'vSitReach': 4.0, 'pullUps': 7},
-    13: {'sitUps': 53, 'shuttleRun': 9.5, 'vSitReach': 3.5, 'pullUps': 7},
-    14: {'sitUps': 56, 'shuttleRun': 9.1, 'vSitReach': 4.5, 'pullUps': 10},
-    15: {'sitUps': 57, 'shuttleRun': 9.0, 'vSitReach': 5.0, 'pullUps': 11},
-    16: {'sitUps': 56, 'shuttleRun': 8.7, 'vSitReach': 6.0, 'pullUps': 11},
-    17: {'sitUps': 55, 'shuttleRun': 8.7, 'vSitReach': 7.0, 'pullUps': 13},
+    6: {
+      'sitUps': 33,
+      'shuttleRun': 12.1,
+      'vSitReach': 3.5,
+      'pullUps': 2,
+      'pushUps': 9
+    },
+    7: {
+      'sitUps': 36,
+      'shuttleRun': 11.5,
+      'vSitReach': 3.5,
+      'pullUps': 4,
+      'pushUps': 14
+    },
+    8: {
+      'sitUps': 40,
+      'shuttleRun': 11.1,
+      'vSitReach': 3.0,
+      'pullUps': 5,
+      'pushUps': 17
+    },
+    9: {
+      'sitUps': 41,
+      'shuttleRun': 10.9,
+      'vSitReach': 3.0,
+      'pullUps': 5,
+      'pushUps': 18
+    },
+    10: {
+      'sitUps': 45,
+      'shuttleRun': 10.3,
+      'vSitReach': 4.0,
+      'pullUps': 6,
+      'pushUps': 22
+    },
+    11: {
+      'sitUps': 47,
+      'shuttleRun': 10.0,
+      'vSitReach': 4.0,
+      'pullUps': 6,
+      'pushUps': 27
+    },
+    12: {
+      'sitUps': 50,
+      'shuttleRun': 9.8,
+      'vSitReach': 4.0,
+      'pullUps': 7,
+      'pushUps': 31
+    },
+    13: {
+      'sitUps': 53,
+      'shuttleRun': 9.5,
+      'vSitReach': 3.5,
+      'pullUps': 7,
+      'pushUps': 39
+    },
+    14: {
+      'sitUps': 56,
+      'shuttleRun': 9.1,
+      'vSitReach': 4.5,
+      'pullUps': 10,
+      'pushUps': 40
+    },
+    15: {
+      'sitUps': 57,
+      'shuttleRun': 9.0,
+      'vSitReach': 5.0,
+      'pullUps': 11,
+      'pushUps': 42
+    },
+    16: {
+      'sitUps': 56,
+      'shuttleRun': 8.7,
+      'vSitReach': 6.0,
+      'pullUps': 11,
+      'pushUps': 44
+    },
+    17: {
+      'sitUps': 55,
+      'shuttleRun': 8.7,
+      'vSitReach': 7.0,
+      'pullUps': 13,
+      'pushUps': 53
+    },
   };
 
   // Girls (Female) Benchmarks
   static final Map<int, Map<String, double>> _girlsBenchmarks = {
-    6: {'sitUps': 32, 'shuttleRun': 12.4, 'vSitReach': 5.5, 'pullUps': 2},
-    7: {'sitUps': 34, 'shuttleRun': 12.1, 'vSitReach': 5.0, 'pullUps': 2},
-    8: {'sitUps': 38, 'shuttleRun': 11.8, 'vSitReach': 4.5, 'pullUps': 2},
-    9: {'sitUps': 39, 'shuttleRun': 11.1, 'vSitReach': 5.5, 'pullUps': 2},
-    10: {'sitUps': 40, 'shuttleRun': 10.8, 'vSitReach': 6.0, 'pullUps': 3},
-    11: {'sitUps': 42, 'shuttleRun': 10.5, 'vSitReach': 6.5, 'pullUps': 3},
-    12: {'sitUps': 45, 'shuttleRun': 10.4, 'vSitReach': 7.0, 'pullUps': 2},
-    13: {'sitUps': 46, 'shuttleRun': 10.2, 'vSitReach': 7.0, 'pullUps': 2},
-    14: {'sitUps': 47, 'shuttleRun': 10.1, 'vSitReach': 8.0, 'pullUps': 2},
-    15: {'sitUps': 48, 'shuttleRun': 10.0, 'vSitReach': 8.0, 'pullUps': 2},
-    16: {'sitUps': 45, 'shuttleRun': 10.1, 'vSitReach': 9.0, 'pullUps': 1},
-    17: {'sitUps': 44, 'shuttleRun': 10.0, 'vSitReach': 8.0, 'pullUps': 1},
+    6: {
+      'sitUps': 32,
+      'shuttleRun': 12.4,
+      'vSitReach': 5.5,
+      'pullUps': 2,
+      'pushUps': 9
+    },
+    7: {
+      'sitUps': 34,
+      'shuttleRun': 12.1,
+      'vSitReach': 5.0,
+      'pullUps': 2,
+      'pushUps': 14
+    },
+    8: {
+      'sitUps': 38,
+      'shuttleRun': 11.8,
+      'vSitReach': 4.5,
+      'pullUps': 2,
+      'pushUps': 17
+    },
+    9: {
+      'sitUps': 39,
+      'shuttleRun': 11.1,
+      'vSitReach': 5.5,
+      'pullUps': 2,
+      'pushUps': 18
+    },
+    10: {
+      'sitUps': 40,
+      'shuttleRun': 10.8,
+      'vSitReach': 6.0,
+      'pullUps': 3,
+      'pushUps': 20
+    },
+    11: {
+      'sitUps': 42,
+      'shuttleRun': 10.5,
+      'vSitReach': 6.5,
+      'pullUps': 3,
+      'pushUps': 19
+    },
+    12: {
+      'sitUps': 45,
+      'shuttleRun': 10.4,
+      'vSitReach': 7.0,
+      'pullUps': 2,
+      'pushUps': 20
+    },
+    13: {
+      'sitUps': 46,
+      'shuttleRun': 10.2,
+      'vSitReach': 7.0,
+      'pullUps': 2,
+      'pushUps': 31
+    },
+    14: {
+      'sitUps': 47,
+      'shuttleRun': 10.1,
+      'vSitReach': 8.0,
+      'pullUps': 2,
+      'pushUps': 20
+    },
+    15: {
+      'sitUps': 48,
+      'shuttleRun': 10.0,
+      'vSitReach': 8.0,
+      'pullUps': 2,
+      'pushUps': 21
+    },
+    16: {
+      'sitUps': 45,
+      'shuttleRun': 10.1,
+      'vSitReach': 9.0,
+      'pullUps': 1,
+      'pushUps': 24
+    },
+    17: {
+      'sitUps': 44,
+      'shuttleRun': 10.0,
+      'vSitReach': 8.0,
+      'pullUps': 1,
+      'pushUps': 25
+    },
   };
 
   /// Get benchmark value for a specific exercise, age, and gender
@@ -109,6 +253,8 @@ class PresidentialFitnessBenchmarks {
         return ageBenchmarks['vSitReach'];
       case ExerciseType.pullUp:
         return ageBenchmarks['pullUps'];
+      case ExerciseType.pushUp:
+        return ageBenchmarks['pushUps'];
       default:
         return null;
     }

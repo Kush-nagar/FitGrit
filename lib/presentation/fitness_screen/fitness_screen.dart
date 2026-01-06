@@ -491,8 +491,7 @@ class _FitnessScreenState extends State<FitnessScreen> {
           BenchmarkComparison? comparison;
           if (_userAge != null && _userGender != null) {
             comparison = PresidentialFitnessBenchmarks.compareShuttleRun(
-              timeInSeconds: _currentShuttleRunMetrics!.totalTime /
-                  _currentShuttleRunMetrics!.completedRuns,
+              timeInSeconds: _currentShuttleRunMetrics!.totalTime,
               age: _userAge!,
               gender: _userGender!,
             );

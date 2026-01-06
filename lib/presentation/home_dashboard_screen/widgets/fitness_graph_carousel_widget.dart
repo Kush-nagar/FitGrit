@@ -288,29 +288,45 @@ class _FitnessGraphCarouselWidgetState
           enabled: true,
           touchTooltipData: BarTouchTooltipData(
             getTooltipColor: (group) =>
-                theme.colorScheme.primaryContainer.withValues(alpha: 0.9),
+                theme.colorScheme.primaryContainer.withValues(alpha: 0.95),
             tooltipPadding: EdgeInsets.all(2.w),
             tooltipMargin: 8,
             getTooltipItem: (group, groupIndex, rod, rodIndex) {
               final date = startOfWeek.add(Duration(days: group.x.toInt()));
               final dateStr = '${date.month}/${date.day}';
               final value = rod.toY;
+              final hasData = data.dailyValues[group.x.toInt()] != null;
 
-              if (value == 0) {
-                return BarTooltipItem(
-                  '$dateStr\nNo data',
-                  theme.textTheme.bodySmall!.copyWith(
-                    color: theme.colorScheme.onPrimaryContainer,
-                    fontWeight: FontWeight.w600,
-                  ),
-                );
+              // Build tooltip text with more information
+              String tooltipText = '$dateStr\n';
+
+              if (!hasData || value == 0) {
+                tooltipText += 'No data';
+              } else {
+                tooltipText += '${value.toStringAsFixed(1)} ${data.unit}';
+
+                // Add benchmark comparison if available
+                if (data.benchmarkValue != null && data.benchmarkValue! > 0) {
+                  final meetsGoal = data.exerciseType == ExerciseType.shuttleRun
+                      ? value <= data.benchmarkValue!
+                      : value >= data.benchmarkValue!;
+
+                  if (meetsGoal) {
+                    tooltipText += '\n✓ Meets Goal';
+                  } else {
+                    final diff = (value - data.benchmarkValue!).abs();
+                    tooltipText +=
+                        '\n${diff.toStringAsFixed(1)} ${data.exerciseType == ExerciseType.shuttleRun ? "above" : "below"} goal';
+                  }
+                }
               }
 
               return BarTooltipItem(
-                '$dateStr\n${value.toStringAsFixed(1)} ${data.unit}',
+                tooltipText,
                 theme.textTheme.bodySmall!.copyWith(
                   color: theme.colorScheme.onPrimaryContainer,
                   fontWeight: FontWeight.w600,
+                  height: 1.3,
                 ),
               );
             },

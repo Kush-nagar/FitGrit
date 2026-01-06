@@ -145,7 +145,7 @@ class FirebaseFitnessService {
       // Add benchmark comparison if age and gender are provided
       if (userAge != null && userGender != null) {
         final comparison = PresidentialFitnessBenchmarks.compareShuttleRun(
-          timeInSeconds: metrics.totalTime / metrics.completedRuns,
+          timeInSeconds: metrics.totalTime,
           age: userAge,
           gender: userGender,
         );
@@ -443,8 +443,8 @@ class FirebaseFitnessService {
                     exerciseType == ExerciseType.sitUp) {
                   value = (data['reps'] as int?)?.toDouble();
                 } else if (exerciseType == ExerciseType.shuttleRun) {
-                  // For shuttle run, use average time per run
-                  value = (data['averageRunTime'] as num?)?.toDouble();
+                  // For shuttle run, use total time
+                  value = (data['totalTime'] as num?)?.toDouble();
                 } else if (exerciseType == ExerciseType.vSitAndReach) {
                   // For flexibility, use max reach distance in inches
                   final reachCm =
