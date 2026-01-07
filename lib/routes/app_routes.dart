@@ -14,6 +14,7 @@ import '../presentation/running_details_screen/running_details_screen.dart';
 import '../presentation/wellness_screen/wellness_screen.dart';
 import '../presentation/screens/splash_screen.dart';
 import '../presentation/screens/onboarding_screen.dart';
+import '../presentation/akira_chat_screen/akira_chat_screen.dart';
 
 class AppRoutes {
   // TODO: Add your routes here
@@ -33,6 +34,7 @@ class AppRoutes {
   static const String runningHistory = '/running-history-screen';
   static const String runningDetails = '/running-details-screen';
   static const String wellness = '/wellness-screen';
+  static const String akiraChat = '/akira-chat-screen';
 
   static Map<String, WidgetBuilder> routes = {
     initial: (context) => const SplashScreen(),
@@ -51,6 +53,7 @@ class AppRoutes {
     runningHistory: (context) => const RunningHistoryScreen(),
     runningDetails: (context) => const RunningDetailsScreen(),
     wellness: (context) => const WellnessScreen(),
+    akiraChat: (context) => const AkiraChatScreen(),
     // TODO: Add your other routes here
   };
 }

@@ -801,6 +801,28 @@ service cloud.firestore {
             margin: EdgeInsets.only(right: 2.w),
             decoration: BoxDecoration(
               shape: BoxShape.circle,
+              gradient: LinearGradient(
+                colors: [
+                  theme.colorScheme.primary.withValues(alpha: 0.2),
+                  theme.colorScheme.tertiary.withValues(alpha: 0.2),
+                ],
+              ),
+            ),
+            child: IconButton(
+              onPressed: () =>
+                  Navigator.pushNamed(context, '/akira-chat-screen'),
+              icon: CustomIconWidget(
+                iconName: 'chat_bubble',
+                color: theme.colorScheme.primary,
+                size: 22,
+              ),
+              tooltip: 'Chat with Akira',
+            ),
+          ),
+          Container(
+            margin: EdgeInsets.only(right: 2.w),
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
               color: theme.colorScheme.primary.withValues(alpha: 0.1),
             ),
             child: IconButton(
