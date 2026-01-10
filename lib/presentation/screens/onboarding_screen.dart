@@ -47,7 +47,9 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
   // Form keys
   final _nameFormKey = GlobalKey<FormState>();
   final _profileFormKey = GlobalKey<FormState>();
+  // ignore: unused_field
   final _goalFormKey = GlobalKey<FormState>();
+  // ignore: unused_field
   final _activityFormKey = GlobalKey<FormState>();
 
   @override
