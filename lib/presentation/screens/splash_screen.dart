@@ -72,19 +72,8 @@ class _SplashScreenState extends State<SplashScreen>
 
     if (!mounted) return;
 
-    // Check if user has completed onboarding
-    final hasCompletedOnboarding =
-        await _onboardingService.hasCompletedOnboarding();
-
-    if (!mounted) return;
-
-    if (hasCompletedOnboarding) {
-      // Navigate to home
-      Navigator.of(context).pushReplacementNamed(AppRoutes.homeDashboard);
-    } else {
-      // Navigate to onboarding
-      Navigator.of(context).pushReplacementNamed(AppRoutes.onboarding);
-    }
+    // Always navigate to animated intro screen after splash
+    Navigator.of(context).pushReplacementNamed(AppRoutes.animatedIntro);
   }
 
   @override

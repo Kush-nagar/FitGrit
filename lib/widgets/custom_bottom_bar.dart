@@ -290,7 +290,7 @@ class _CustomBottomBarState extends State<CustomBottomBar>
                                               child: Icon(
                                                 isSelected ? item.activeIcon : item.icon,
                                                 size: 32,
-                                                color: Colors.white,
+                                                color: theme.colorScheme.primary,
                                               ),
                                             ),
                                             // Badge
