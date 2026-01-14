@@ -3,7 +3,7 @@ import 'package:sizer/sizer.dart';
 import 'package:flutter_markdown/flutter_markdown.dart';
 import '../../models/chat_message.dart';
 import '../../services/akira_chatbot_service.dart';
-import '../../theme/app_theme.dart';
+import '../../widgets/custom_bottom_bar.dart';
 import 'dart:async';
 
 class AkiraChatScreen extends StatefulWidget {
@@ -36,7 +36,7 @@ class _AkiraChatScreenState extends State<AkiraChatScreen>
       ChatMessage(
         id: 'welcome',
         content:
-            "Hello! I'm Akira 👋\n\nI'm your personal health and fitness assistant. I can help you with:\n\n• Nutrition and meal planning\n\n• Fitness and exercise guidance\n\n• Mental health and wellness\n\n• Presidential Fitness Test info\n\n• General health questions\n\nHow can I assist you today?",
+            "Hello! I'm Atlas 👋\n\nI'm your personal health and fitness assistant. I can help you with:\n\n• Nutrition and meal planning\n\n• Fitness and exercise guidance\n\n• Mental health and wellness\n\n• Presidential Fitness Test info\n\n• General health questions\n\nHow can I assist you today?",
         role: MessageRole.assistant,
         timestamp: DateTime.now(),
       ),
@@ -118,17 +118,44 @@ class _AkiraChatScreenState extends State<AkiraChatScreen>
   }
 
   void _clearChat() {
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+    
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        backgroundColor: AppTheme.dialogDark,
-        title: const Text('Clear Chat History'),
-        content:
-            const Text('Are you sure you want to clear all chat messages?'),
+        backgroundColor: isDark ? const Color(0xFF2C2C2E) : Colors.white,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(14),
+        ),
+        title: Text(
+          'Clear Chat History',
+          style: TextStyle(
+            color: isDark ? Colors.white : Colors.black,
+            fontSize: 17,
+            fontWeight: FontWeight.w600,
+            letterSpacing: -0.4,
+          ),
+        ),
+        content: Text(
+          'Are you sure you want to clear all chat messages?',
+          style: TextStyle(
+            color: isDark ? const Color(0xFF8E8E93) : const Color(0xFF6C6C70),
+            fontSize: 13,
+            fontWeight: FontWeight.w400,
+          ),
+        ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),
-            child: const Text('Cancel'),
+            child: Text(
+              'Cancel',
+              style: TextStyle(
+                color: isDark ? const Color(0xFF0A84FF) : const Color(0xFF007AFF),
+                fontSize: 17,
+                fontWeight: FontWeight.w400,
+              ),
+            ),
           ),
           TextButton(
             onPressed: () {
@@ -138,7 +165,7 @@ class _AkiraChatScreenState extends State<AkiraChatScreen>
                   ChatMessage(
                     id: 'welcome',
                     content:
-                        "Hello again! I'm Akira. How can I help you with your health and fitness journey?",
+                        "Hello again! I'm Atlas. How can I help you with your health and fitness journey?",
                     role: MessageRole.assistant,
                     timestamp: DateTime.now(),
                   ),
@@ -147,9 +174,13 @@ class _AkiraChatScreenState extends State<AkiraChatScreen>
               _chatbotService.clearHistory();
               Navigator.pop(context);
             },
-            child: Text(
+            child: const Text(
               'Clear',
-              style: TextStyle(color: AppTheme.accentRed),
+              style: TextStyle(
+                color: Color(0xFFFF3B30),
+                fontSize: 17,
+                fontWeight: FontWeight.w600,
+              ),
             ),
           ),
         ],
@@ -159,77 +190,63 @@ class _AkiraChatScreenState extends State<AkiraChatScreen>
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+    
     return Scaffold(
-      backgroundColor: AppTheme.backgroundDark,
+      backgroundColor: isDark ? const Color(0xFF000000) : const Color(0xFFF2F2F7),
       appBar: AppBar(
-        backgroundColor: AppTheme.backgroundDark,
+        backgroundColor: isDark ? const Color(0xFF000000) : const Color(0xFFF2F2F7),
         elevation: 0,
-        leading: IconButton(
-          icon: Icon(Icons.arrow_back_ios_new_rounded, size: 20),
-          onPressed: () => Navigator.pop(context),
-        ),
+        automaticallyImplyLeading: false,
+        surfaceTintColor: Colors.transparent,
         title: Row(
           children: [
             Container(
-              width: 42,
-              height: 42,
+              width: 36,
+              height: 36,
               decoration: BoxDecoration(
                 gradient: LinearGradient(
-                  colors: [AppTheme.primaryLime, AppTheme.accentBlue],
+                  colors: isDark
+                      ? [const Color(0xFF0A84FF), const Color(0xFF5E5CE6)]
+                      : [const Color(0xFF007AFF), const Color(0xFF5856D6)],
                   begin: Alignment.topLeft,
                   end: Alignment.bottomRight,
                 ),
                 shape: BoxShape.circle,
-                boxShadow: [
-                  BoxShadow(
-                    color: AppTheme.primaryLime.withOpacity(0.3),
-                    blurRadius: 12,
-                    offset: Offset(0, 4),
-                  ),
-                ],
               ),
               child: const Center(
                 child: Icon(
-                  Icons.psychology_rounded,
+                  Icons.bolt_rounded,
                   color: Colors.white,
-                  size: 22,
+                  size: 20,
                 ),
               ),
             ),
-            SizedBox(width: 3.w),
+            SizedBox(width: 2.w),
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const Text(
-                    'Akira',
+                  Text(
+                    'Atlas',
                     style: TextStyle(
-                      fontSize: 19,
-                      fontWeight: FontWeight.w700,
-                      color: AppTheme.textPrimary,
-                      letterSpacing: 0.3,
+                      fontSize: 17,
+                      fontWeight: FontWeight.w600,
+                      color: isDark ? Colors.white : Colors.black,
+                      letterSpacing: -0.4,
                     ),
                   ),
-                  Row(
-                    children: [
-                      Container(
-                        width: 6,
-                        height: 6,
-                        decoration: BoxDecoration(
-                          color: AppTheme.primaryLime,
-                          shape: BoxShape.circle,
-                        ),
-                      ),
-                      SizedBox(width: 1.5.w),
-                      Text(
-                        'Online',
-                        style: TextStyle(
-                          fontSize: 12,
-                          color: AppTheme.textSecondary,
-                          fontWeight: FontWeight.w500,
-                        ),
-                      ),
-                    ],
+                  Text(
+                    'AI Assistant',
+                    style: TextStyle(
+                      fontSize: 11,
+                      color: isDark
+                          ? const Color(0xFF8E8E93)
+                          : const Color(0xFF6C6C70),
+                      fontWeight: FontWeight.w400,
+                      letterSpacing: -0.1,
+                    ),
                   ),
                 ],
               ),
@@ -238,11 +255,15 @@ class _AkiraChatScreenState extends State<AkiraChatScreen>
         ),
         actions: [
           IconButton(
-            icon: Icon(Icons.restart_alt_rounded, size: 22),
+            icon: Icon(
+              Icons.refresh_rounded,
+              size: 20,
+              color: isDark ? const Color(0xFF0A84FF) : const Color(0xFF007AFF),
+            ),
             onPressed: _clearChat,
             tooltip: 'New chat',
           ),
-          SizedBox(width: 1.w),
+          SizedBox(width: 0.5.w),
         ],
       ),
       body: Column(
@@ -267,172 +288,152 @@ class _AkiraChatScreenState extends State<AkiraChatScreen>
           _buildInputArea(),
         ],
       ),
+      bottomNavigationBar: CustomBottomBar(
+        currentRoute: '/akira-chat-screen',
+        onNavigate: (route) {
+          if (route != '/akira-chat-screen') {
+            Navigator.pushNamed(context, route);
+          }
+        },
+      ),
     );
   }
 
   Widget _buildMessageBubble(ChatMessage message) {
     final isUser = message.role == MessageRole.user;
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
 
     return Padding(
-      padding: EdgeInsets.only(bottom: 4.h),
+      padding: EdgeInsets.only(bottom: 3.h),
       child: Row(
         mainAxisAlignment:
             isUser ? MainAxisAlignment.end : MainAxisAlignment.start,
-        crossAxisAlignment: CrossAxisAlignment.start,
+        crossAxisAlignment: CrossAxisAlignment.end,
         children: [
           if (!isUser) ...[
             _buildAvatarIcon(),
-            SizedBox(width: 3.w),
+            SizedBox(width: 2.w),
           ],
           Flexible(
-            child: Column(
-              crossAxisAlignment:
-                  isUser ? CrossAxisAlignment.end : CrossAxisAlignment.start,
-              children: [
-                if (!isUser)
-                  Padding(
-                    padding: EdgeInsets.only(bottom: 1.h, left: 1.w),
-                    child: Text(
-                      'Akira',
-                      style: TextStyle(
-                        fontSize: 12,
-                        fontWeight: FontWeight.w600,
-                        color: AppTheme.textSecondary,
-                        letterSpacing: 0.3,
-                      ),
-                    ),
-                  ),
-                Container(
-                  constraints: BoxConstraints(maxWidth: 85.w),
-                  padding: EdgeInsets.symmetric(
-                    horizontal: 4.5.w,
-                    vertical: 2.5.h,
-                  ),
-                  decoration: BoxDecoration(
-                    gradient: isUser
-                        ? LinearGradient(
-                            colors: [
-                              AppTheme.primaryLime,
-                              AppTheme.primaryLime.withOpacity(0.9),
-                            ],
-                            begin: Alignment.topLeft,
-                            end: Alignment.bottomRight,
-                          )
-                        : null,
-                    color: isUser ? null : AppTheme.surfaceDark,
-                    borderRadius: BorderRadius.only(
-                      topLeft: Radius.circular(isUser ? 24 : 6),
-                      topRight: Radius.circular(isUser ? 6 : 24),
-                      bottomLeft: const Radius.circular(24),
-                      bottomRight: const Radius.circular(24),
-                    ),
-                    border: !isUser
-                        ? Border.all(
-                            color: AppTheme.borderColor.withOpacity(0.2),
-                            width: 1,
-                          )
-                        : null,
-                    boxShadow: [
-                      BoxShadow(
-                        color: isUser
-                            ? AppTheme.primaryLime.withOpacity(0.15)
-                            : Colors.black.withOpacity(0.08),
-                        blurRadius: 12,
-                        offset: Offset(0, 4),
-                        spreadRadius: 0,
-                      ),
-                    ],
-                  ),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      isUser
-                          ? Text(
-                              message.content,
-                              style: TextStyle(
-                                color: Colors.white,
-                                fontSize: 15,
-                                height: 1.6,
-                                fontWeight: FontWeight.w500,
-                                letterSpacing: 0.2,
-                              ),
-                            )
-                          : MarkdownBody(
-                              data: message.content,
-                              styleSheet: MarkdownStyleSheet(
-                                p: TextStyle(
-                                  color: AppTheme.textPrimary,
-                                  fontSize: 15,
-                                  height: 1.7,
-                                  fontWeight: FontWeight.w400,
-                                  letterSpacing: 0.15,
-                                ),
-                                strong: TextStyle(
-                                  color: AppTheme.textPrimary,
-                                  fontSize: 15,
-                                  fontWeight: FontWeight.w700,
-                                  height: 1.7,
-                                  letterSpacing: 0.15,
-                                ),
-                                em: TextStyle(
-                                  color: AppTheme.textPrimary.withOpacity(0.9),
-                                  fontSize: 15,
-                                  fontStyle: FontStyle.italic,
-                                  height: 1.7,
-                                ),
-                                listBullet: TextStyle(
-                                  color: AppTheme.primaryLime,
-                                  fontSize: 16,
-                                  fontWeight: FontWeight.bold,
-                                ),
-                                h1: TextStyle(
-                                  color: AppTheme.textPrimary,
-                                  fontSize: 20,
-                                  fontWeight: FontWeight.w700,
-                                  height: 1.4,
-                                  letterSpacing: 0.3,
-                                ),
-                                h2: TextStyle(
-                                  color: AppTheme.textPrimary,
-                                  fontSize: 18,
-                                  fontWeight: FontWeight.w700,
-                                  height: 1.4,
-                                  letterSpacing: 0.3,
-                                ),
-                                h3: TextStyle(
-                                  color: AppTheme.textPrimary,
-                                  fontSize: 16,
-                                  fontWeight: FontWeight.w600,
-                                  height: 1.4,
-                                ),
-                                code: TextStyle(
-                                  backgroundColor:
-                                      AppTheme.backgroundDark.withOpacity(0.5),
-                                  color: AppTheme.primaryLime,
-                                  fontSize: 14,
-                                  fontFamily: 'monospace',
-                                ),
-                                blockquote: TextStyle(
-                                  color: AppTheme.textSecondary,
-                                  fontSize: 15,
-                                  fontStyle: FontStyle.italic,
-                                ),
-                              ),
-                              shrinkWrap: true,
-                            ),
-                      if (message.isStreaming)
-                        Padding(
-                          padding: EdgeInsets.only(top: 1.5.h),
-                          child: _buildStreamingIndicator(),
+            child: Container(
+              constraints: BoxConstraints(maxWidth: 75.w),
+              padding: EdgeInsets.symmetric(
+                horizontal: 3.5.w,
+                vertical: 1.8.h,
+              ),
+              decoration: BoxDecoration(
+                color: isUser
+                    ? (isDark ? const Color(0xFF0A84FF) : const Color(0xFF007AFF))
+                    : (isDark ? const Color(0xFF1C1C1E) : Colors.white),
+                borderRadius: BorderRadius.circular(18),
+                boxShadow: isUser
+                    ? []
+                    : [
+                        BoxShadow(
+                          color: Colors.black.withOpacity(isDark ? 0.3 : 0.08),
+                          blurRadius: 10,
+                          offset: const Offset(0, 2),
                         ),
-                    ],
-                  ),
-                ),
-              ],
+                      ],
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  isUser
+                      ? Text(
+                          message.content,
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 16,
+                            height: 1.4,
+                            fontWeight: FontWeight.w400,
+                            letterSpacing: -0.3,
+                          ),
+                        )
+                      : MarkdownBody(
+                          data: message.content,
+                          styleSheet: MarkdownStyleSheet(
+                            p: TextStyle(
+                              color: isDark ? Colors.white : Colors.black,
+                              fontSize: 16,
+                              height: 1.45,
+                              fontWeight: FontWeight.w400,
+                              letterSpacing: -0.3,
+                            ),
+                            strong: TextStyle(
+                              color: isDark ? Colors.white : Colors.black,
+                              fontSize: 16,
+                              fontWeight: FontWeight.w600,
+                              height: 1.45,
+                              letterSpacing: -0.3,
+                            ),
+                            em: TextStyle(
+                              color: isDark
+                                  ? Colors.white.withOpacity(0.9)
+                                  : Colors.black.withOpacity(0.9),
+                              fontSize: 16,
+                              fontStyle: FontStyle.italic,
+                              height: 1.45,
+                            ),
+                            listBullet: TextStyle(
+                              color: isDark
+                                  ? const Color(0xFF0A84FF)
+                                  : const Color(0xFF007AFF),
+                              fontSize: 16,
+                              fontWeight: FontWeight.w600,
+                            ),
+                            h1: TextStyle(
+                              color: isDark ? Colors.white : Colors.black,
+                              fontSize: 20,
+                              fontWeight: FontWeight.w700,
+                              height: 1.3,
+                              letterSpacing: -0.4,
+                            ),
+                            h2: TextStyle(
+                              color: isDark ? Colors.white : Colors.black,
+                              fontSize: 18,
+                              fontWeight: FontWeight.w600,
+                              height: 1.3,
+                              letterSpacing: -0.4,
+                            ),
+                            h3: TextStyle(
+                              color: isDark ? Colors.white : Colors.black,
+                              fontSize: 17,
+                              fontWeight: FontWeight.w600,
+                              height: 1.3,
+                            ),
+                            code: TextStyle(
+                              backgroundColor: isDark
+                                  ? const Color(0xFF2C2C2E)
+                                  : const Color(0xFFE5E5EA),
+                              color: isDark
+                                  ? const Color(0xFF0A84FF)
+                                  : const Color(0xFF007AFF),
+                              fontSize: 15,
+                              fontFamily: 'monospace',
+                            ),
+                            blockquote: TextStyle(
+                              color: isDark
+                                  ? const Color(0xFF8E8E93)
+                                  : const Color(0xFF6C6C70),
+                              fontSize: 16,
+                              fontStyle: FontStyle.italic,
+                            ),
+                          ),
+                          shrinkWrap: true,
+                        ),
+                  if (message.isStreaming)
+                    Padding(
+                      padding: EdgeInsets.only(top: 1.h),
+                      child: _buildStreamingIndicator(),
+                    ),
+                ],
+              ),
             ),
           ),
           if (isUser) ...[
-            SizedBox(width: 3.w),
+            SizedBox(width: 2.w),
             _buildUserAvatar(),
           ],
         ],
@@ -441,86 +442,76 @@ class _AkiraChatScreenState extends State<AkiraChatScreen>
   }
 
   Widget _buildAvatarIcon() {
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+    
     return Container(
-      width: 40,
-      height: 40,
+      width: 28,
+      height: 28,
       decoration: BoxDecoration(
         gradient: LinearGradient(
-          colors: [AppTheme.primaryLime, AppTheme.accentBlue],
+          colors: isDark
+              ? [const Color(0xFF0A84FF), const Color(0xFF5E5CE6)]
+              : [const Color(0xFF007AFF), const Color(0xFF5856D6)],
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
         ),
         shape: BoxShape.circle,
-        boxShadow: [
-          BoxShadow(
-            color: AppTheme.primaryLime.withOpacity(0.25),
-            blurRadius: 8,
-            offset: Offset(0, 2),
-          ),
-        ],
       ),
       child: const Center(
         child: Icon(
-          Icons.psychology_rounded,
+          Icons.bolt_rounded,
           color: Colors.white,
-          size: 22,
+          size: 16,
         ),
       ),
     );
   }
 
   Widget _buildUserAvatar() {
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+    
     return Container(
-      width: 40,
-      height: 40,
+      width: 28,
+      height: 28,
       decoration: BoxDecoration(
-        gradient: LinearGradient(
-          colors: [
-            AppTheme.accentPurple,
-            AppTheme.accentPurple.withOpacity(0.8),
-          ],
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-        ),
+        color: isDark ? const Color(0xFF48484A) : const Color(0xFFD1D1D6),
         shape: BoxShape.circle,
-        boxShadow: [
-          BoxShadow(
-            color: AppTheme.accentPurple.withOpacity(0.25),
-            blurRadius: 8,
-            offset: Offset(0, 2),
-          ),
-        ],
       ),
-      child: const Center(
+      child: Center(
         child: Icon(
           Icons.person_rounded,
-          color: Colors.white,
-          size: 22,
+          color: isDark ? Colors.white : const Color(0xFF3C3C43),
+          size: 16,
         ),
       ),
     );
   }
 
   Widget _buildStreamingIndicator() {
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+    
     return Row(
       children: [
         SizedBox(
-          width: 12,
-          height: 12,
+          width: 10,
+          height: 10,
           child: CircularProgressIndicator(
             strokeWidth: 2,
             valueColor: AlwaysStoppedAnimation<Color>(
-              AppTheme.primaryLime.withOpacity(0.6),
+              isDark ? const Color(0xFF0A84FF) : const Color(0xFF007AFF),
             ),
           ),
         ),
         SizedBox(width: 2.w),
         Text(
-          'Generating...',
+          'Thinking...',
           style: TextStyle(
             fontSize: 11,
-            color: AppTheme.textSecondary,
-            fontStyle: FontStyle.italic,
+            color: isDark ? const Color(0xFF8E8E93) : const Color(0xFF6C6C70),
+            fontWeight: FontWeight.w400,
           ),
         ),
       ],
@@ -528,65 +519,42 @@ class _AkiraChatScreenState extends State<AkiraChatScreen>
   }
 
   Widget _buildTypingIndicator() {
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+    
     return Padding(
-      padding: EdgeInsets.only(bottom: 4.h),
+      padding: EdgeInsets.only(bottom: 3.h),
       child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
+        crossAxisAlignment: CrossAxisAlignment.end,
         children: [
           _buildAvatarIcon(),
-          SizedBox(width: 3.w),
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Padding(
-                padding: EdgeInsets.only(bottom: 1.h, left: 1.w),
-                child: Text(
-                  'Akira',
-                  style: TextStyle(
-                    fontSize: 12,
-                    fontWeight: FontWeight.w600,
-                    color: AppTheme.textSecondary,
-                    letterSpacing: 0.3,
-                  ),
+          SizedBox(width: 2.w),
+          Container(
+            padding: EdgeInsets.symmetric(
+              horizontal: 3.5.w,
+              vertical: 1.8.h,
+            ),
+            decoration: BoxDecoration(
+              color: isDark ? const Color(0xFF1C1C1E) : Colors.white,
+              borderRadius: BorderRadius.circular(18),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withOpacity(isDark ? 0.3 : 0.08),
+                  blurRadius: 10,
+                  offset: const Offset(0, 2),
                 ),
-              ),
-              Container(
-                padding: EdgeInsets.symmetric(
-                  horizontal: 5.w,
-                  vertical: 2.h,
-                ),
-                decoration: BoxDecoration(
-                  color: AppTheme.surfaceDark,
-                  borderRadius: const BorderRadius.only(
-                    topLeft: Radius.circular(6),
-                    topRight: Radius.circular(24),
-                    bottomLeft: Radius.circular(24),
-                    bottomRight: Radius.circular(24),
-                  ),
-                  border: Border.all(
-                    color: AppTheme.borderColor.withOpacity(0.2),
-                    width: 1,
-                  ),
-                  boxShadow: [
-                    BoxShadow(
-                      color: Colors.black.withOpacity(0.08),
-                      blurRadius: 12,
-                      offset: Offset(0, 4),
-                    ),
-                  ],
-                ),
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    _buildTypingDot(0),
-                    SizedBox(width: 1.5.w),
-                    _buildTypingDot(200),
-                    SizedBox(width: 1.5.w),
-                    _buildTypingDot(400),
-                  ],
-                ),
-              ),
-            ],
+              ],
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                _buildTypingDot(0),
+                SizedBox(width: 1.w),
+                _buildTypingDot(200),
+                SizedBox(width: 1.w),
+                _buildTypingDot(400),
+              ],
+            ),
           ),
         ],
       ),
@@ -594,6 +562,9 @@ class _AkiraChatScreenState extends State<AkiraChatScreen>
   }
 
   Widget _buildTypingDot(int delay) {
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+    
     return AnimatedBuilder(
       animation: _typingAnimationController,
       builder: (context, child) {
@@ -604,7 +575,8 @@ class _AkiraChatScreenState extends State<AkiraChatScreen>
           width: 8,
           height: 8,
           decoration: BoxDecoration(
-            color: AppTheme.primaryLime.withOpacity(opacity.clamp(0.2, 1.0)),
+            color: (isDark ? const Color(0xFF8E8E93) : const Color(0xFF6C6C70))
+                .withOpacity(opacity.clamp(0.3, 1.0)),
             shape: BoxShape.circle,
           ),
         );
@@ -613,14 +585,19 @@ class _AkiraChatScreenState extends State<AkiraChatScreen>
   }
 
   Widget _buildInputArea() {
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+    
     return Container(
-      padding: EdgeInsets.fromLTRB(4.w, 3.w, 4.w, 2.w),
+      padding: EdgeInsets.fromLTRB(3.w, 2.w, 3.w, 1.5.w),
       decoration: BoxDecoration(
-        color: AppTheme.backgroundDark,
+        color: isDark ? const Color(0xFF000000) : const Color(0xFFF2F2F7),
         border: Border(
           top: BorderSide(
-            color: AppTheme.borderColor.withOpacity(0.15),
-            width: 1,
+            color: isDark
+                ? const Color(0xFF38383A)
+                : const Color(0xFFC6C6C8),
+            width: 0.5,
           ),
         ),
       ),
@@ -630,86 +607,63 @@ class _AkiraChatScreenState extends State<AkiraChatScreen>
           children: [
             Expanded(
               child: Container(
-                padding: EdgeInsets.symmetric(horizontal: 4.5.w),
+                padding: EdgeInsets.symmetric(horizontal: 3.5.w),
                 decoration: BoxDecoration(
-                  color: AppTheme.surfaceDark,
-                  borderRadius: BorderRadius.circular(28),
+                  color: isDark ? const Color(0xFF1C1C1E) : Colors.white,
+                  borderRadius: BorderRadius.circular(20),
                   border: Border.all(
-                    color: AppTheme.borderColor.withOpacity(0.3),
-                    width: 1.5,
+                    color: isDark
+                        ? const Color(0xFF38383A)
+                        : const Color(0xFFD1D1D6),
+                    width: 1,
                   ),
-                  boxShadow: [
-                    BoxShadow(
-                      color: Colors.black.withOpacity(0.1),
-                      blurRadius: 8,
-                      offset: Offset(0, 2),
-                    ),
-                  ],
                 ),
                 child: TextField(
                   controller: _messageController,
-                  style: const TextStyle(
-                    color: AppTheme.textPrimary,
-                    fontSize: 15,
+                  style: TextStyle(
+                    color: isDark ? Colors.white : Colors.black,
+                    fontSize: 16,
                     fontWeight: FontWeight.w400,
-                    height: 1.5,
+                    height: 1.4,
+                    letterSpacing: -0.3,
                   ),
                   maxLines: null,
                   textCapitalization: TextCapitalization.sentences,
                   decoration: InputDecoration(
-                    hintText: 'Ask Akira anything...',
+                    hintText: 'Message',
                     hintStyle: TextStyle(
-                      color: AppTheme.textSecondary,
-                      fontSize: 15,
+                      color: isDark
+                          ? const Color(0xFF8E8E93)
+                          : const Color(0xFF6C6C70),
+                      fontSize: 16,
                       fontWeight: FontWeight.w400,
+                      letterSpacing: -0.3,
                     ),
                     border: InputBorder.none,
-                    contentPadding: EdgeInsets.symmetric(vertical: 1.8.h),
+                    contentPadding: EdgeInsets.symmetric(vertical: 1.5.h),
                   ),
                   onSubmitted: (_) => _sendMessage(),
                 ),
               ),
             ),
-            SizedBox(width: 2.5.w),
+            SizedBox(width: 2.w),
             GestureDetector(
               onTap: _isTyping ? null : _sendMessage,
               child: Container(
-                width: 52,
-                height: 52,
+                width: 34,
+                height: 34,
                 decoration: BoxDecoration(
-                  gradient: _isTyping
-                      ? LinearGradient(
-                          colors: [
-                            AppTheme.textSecondary.withOpacity(0.5),
-                            AppTheme.textTertiary.withOpacity(0.5),
-                          ],
-                        )
-                      : LinearGradient(
-                          colors: [
-                            AppTheme.primaryLime,
-                            AppTheme.accentBlue,
-                          ],
-                          begin: Alignment.topLeft,
-                          end: Alignment.bottomRight,
-                        ),
+                  color: _isTyping
+                      ? (isDark ? const Color(0xFF48484A) : const Color(0xFFD1D1D6))
+                      : (isDark ? const Color(0xFF0A84FF) : const Color(0xFF007AFF)),
                   shape: BoxShape.circle,
-                  boxShadow: !_isTyping
-                      ? [
-                          BoxShadow(
-                            color: AppTheme.primaryLime.withOpacity(0.4),
-                            blurRadius: 16,
-                            offset: Offset(0, 6),
-                            spreadRadius: -2,
-                          ),
-                        ]
-                      : [],
                 ),
                 child: Icon(
-                  _isTyping
-                      ? Icons.hourglass_empty_rounded
-                      : Icons.send_rounded,
-                  color: Colors.white,
-                  size: 22,
+                  Icons.arrow_upward_rounded,
+                  color: _isTyping
+                      ? (isDark ? const Color(0xFF8E8E93) : const Color(0xFF6C6C70))
+                      : Colors.white,
+                  size: 20,
                 ),
               ),
             ),

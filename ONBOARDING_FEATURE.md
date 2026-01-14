@@ -2,7 +2,7 @@
 
 ## Overview
 
-This feature adds a modern splash screen and comprehensive onboarding flow to the NutriScan app. The onboarding collects user information and generates personalized health recommendations using Gemini AI.
+This feature adds a modern splash screen and comprehensive onboarding flow to the FitGrit AI app. The onboarding collects user information and generates personalized health recommendations using Gemini AI.
 
 ## Features
 

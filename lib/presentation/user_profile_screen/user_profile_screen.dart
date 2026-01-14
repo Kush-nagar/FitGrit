@@ -803,7 +803,7 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
               // App Version
               Center(
                 child: Text(
-                  'NutriScan v1.0.0',
+                  'FitGrit AI v1.0.0',
                   style: theme.textTheme.bodySmall?.copyWith(
                     color: theme.colorScheme.onSurfaceVariant,
                   ),

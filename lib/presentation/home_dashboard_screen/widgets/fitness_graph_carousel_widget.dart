@@ -225,12 +225,12 @@ class _FitnessGraphCarouselWidgetState
                         Row(
                           mainAxisAlignment: MainAxisAlignment.center,
                           children: [
-                            Container(
-                              width: 6.w,
-                              height: 0.4.h,
-                              decoration: BoxDecoration(
+                            CustomPaint(
+                              size: Size(6.w, 0.4.h),
+                              painter: DashedLinePainter(
                                 color: Colors.orange,
-                                borderRadius: BorderRadius.circular(1),
+                                dashWidth: 4,
+                                dashSpace: 3,
                               ),
                             ),
                             SizedBox(width: 2.w),
@@ -484,4 +484,38 @@ class _FitnessGraphCarouselWidgetState
       ),
     );
   }
+}
+
+/// Custom painter to draw a dashed line for the legend
+class DashedLinePainter extends CustomPainter {
+  final Color color;
+  final double dashWidth;
+  final double dashSpace;
+
+  DashedLinePainter({
+    required this.color,
+    this.dashWidth = 5,
+    this.dashSpace = 3,
+  });
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final paint = Paint()
+      ..color = color
+      ..strokeWidth = size.height
+      ..strokeCap = StrokeCap.round;
+
+    double startX = 0;
+    while (startX < size.width) {
+      canvas.drawLine(
+        Offset(startX, size.height / 2),
+        Offset(startX + dashWidth, size.height / 2),
+        paint,
+      );
+      startX += dashWidth + dashSpace;
+    }
+  }
+
+  @override
+  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
 }

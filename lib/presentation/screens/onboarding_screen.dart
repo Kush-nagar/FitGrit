@@ -169,7 +169,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Welcome to NutriScan'),
+        title: const Text('Welcome to FitGrit AI'),
         backgroundColor: Colors.transparent,
         elevation: 0,
       ),

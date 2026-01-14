@@ -89,7 +89,7 @@ class _MyAppState extends State<MyApp> {
           _updateSystemUIOverlay(brightness);
 
           return MaterialApp(
-            title: 'nutriscan',
+            title: 'FitGrit AI',
             theme: AppTheme.lightTheme,
             darkTheme: AppTheme.darkTheme,
             themeMode: themeProvider.themeMode,

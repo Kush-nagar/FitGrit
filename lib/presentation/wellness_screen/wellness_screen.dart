@@ -4,6 +4,7 @@ import 'package:sizer/sizer.dart';
 import 'dart:async';
 import '../../widgets/custom_bottom_bar.dart';
 import '../../core/app_export.dart';
+import '../../services/meditation_audio_service.dart';
 
 /// Mental Wellness Screen
 ///
@@ -847,44 +848,114 @@ class _BreathingExerciseScreenState extends State<BreathingExerciseScreen>
 }
 
 // Meditation Library Screen
-class MeditationLibraryScreen extends StatelessWidget {
+class MeditationLibraryScreen extends StatefulWidget {
   const MeditationLibraryScreen({super.key});
+
+  @override
+  State<MeditationLibraryScreen> createState() =>
+      _MeditationLibraryScreenState();
+}
+
+class _MeditationLibraryScreenState extends State<MeditationLibraryScreen> {
+  final MeditationAudioService _audioService = MeditationAudioService();
+  String? _playingId;
+
+  @override
+  void initState() {
+    super.initState();
+    _audioService.initialize();
+    
+    // Listen to player state changes
+    _audioService.onPlayerStateChanged.listen((state) {
+      if (mounted) {
+        setState(() {
+          _playingId = _audioService.currentMeditationId;
+        });
+      }
+    });
+  }
+
+  @override
+  void dispose() {
+    _audioService.stop();
+    super.dispose();
+  }
+
+  Future<void> _playMeditation(String id, String title, int durationMinutes) async {
+    if (_playingId == id && _audioService.isPlaying) {
+      // If already playing this meditation, pause it
+      await _audioService.pause();
+      setState(() {
+        _playingId = null;
+      });
+    } else {
+      // Play the meditation
+      await _audioService.playMeditation(id, durationMinutes);
+      setState(() {
+        _playingId = id;
+      });
+      
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Playing: $title - ${durationMinutes}min'),
+            behavior: SnackBarBehavior.floating,
+            duration: const Duration(seconds: 2),
+            action: SnackBarAction(
+              label: 'Stop',
+              onPressed: () {
+                _audioService.stop();
+                setState(() {
+                  _playingId = null;
+                });
+              },
+            ),
+          ),
+        );
+      }
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final meditations = [
       {
+        'id': 'quick_calm',
         'title': 'Quick Calm',
-        'duration': '1 min',
+        'duration': 1,
         'intent': 'Reduce Anxiety',
         'icon': Icons.self_improvement,
         'color': Colors.blue,
       },
       {
+        'id': 'focus_boost',
         'title': 'Focus Boost',
-        'duration': '3 min',
+        'duration': 3,
         'intent': 'Improve Focus',
         'icon': Icons.center_focus_strong,
         'color': Colors.orange,
       },
       {
+        'id': 'stress_relief',
         'title': 'Stress Relief',
-        'duration': '5 min',
+        'duration': 5,
         'intent': 'Stress Management',
         'icon': Icons.spa_rounded,
         'color': Colors.purple,
       },
       {
+        'id': 'sleep_winddown',
         'title': 'Sleep Wind-Down',
-        'duration': '10 min',
+        'duration': 10,
         'intent': 'Better Sleep',
         'icon': Icons.bedtime_rounded,
         'color': Colors.indigo,
       },
       {
+        'id': 'body_scan',
         'title': 'Body Scan',
-        'duration': '7 min',
+        'duration': 7,
         'intent': 'Relaxation',
         'icon': Icons.accessible_forward,
         'color': Colors.green,
@@ -895,12 +966,27 @@ class MeditationLibraryScreen extends StatelessWidget {
       backgroundColor: theme.scaffoldBackgroundColor,
       appBar: AppBar(
         title: const Text('Micro-Meditations'),
+        actions: [
+          if (_audioService.isPlaying)
+            IconButton(
+              icon: const Icon(Icons.stop),
+              onPressed: () {
+                _audioService.stop();
+                setState(() {
+                  _playingId = null;
+                });
+              },
+              tooltip: 'Stop playback',
+            ),
+        ],
       ),
       body: ListView.builder(
         padding: EdgeInsets.all(4.w),
         itemCount: meditations.length,
         itemBuilder: (context, index) {
           final meditation = meditations[index];
+          final isPlaying = _playingId == meditation['id'];
+          
           return Container(
             margin: EdgeInsets.only(bottom: 2.h),
             child: Material(
@@ -908,12 +994,10 @@ class MeditationLibraryScreen extends StatelessWidget {
               borderRadius: BorderRadius.circular(16),
               child: InkWell(
                 onTap: () {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(
-                      content: Text(
-                          'Playing: ${meditation['title']} - ${meditation['duration']}'),
-                      behavior: SnackBarBehavior.floating,
-                    ),
+                  _playMeditation(
+                    meditation['id'] as String,
+                    meditation['title'] as String,
+                    meditation['duration'] as int,
                   );
                 },
                 borderRadius: BorderRadius.circular(16),
@@ -922,7 +1006,10 @@ class MeditationLibraryScreen extends StatelessWidget {
                   decoration: BoxDecoration(
                     borderRadius: BorderRadius.circular(16),
                     border: Border.all(
-                      color: theme.colorScheme.outline.withOpacity(0.2),
+                      color: isPlaying
+                          ? (meditation['color'] as Color).withOpacity(0.5)
+                          : theme.colorScheme.outline.withOpacity(0.2),
+                      width: isPlaying ? 2 : 1,
                     ),
                   ),
                   child: Row(
@@ -961,7 +1048,7 @@ class MeditationLibraryScreen extends StatelessWidget {
                                 ),
                                 SizedBox(width: 1.w),
                                 Text(
-                                  meditation['duration'] as String,
+                                  '${meditation['duration']} min',
                                   style: theme.textTheme.bodyMedium?.copyWith(
                                     color: theme.colorScheme.onSurfaceVariant,
                                   ),
@@ -992,7 +1079,7 @@ class MeditationLibraryScreen extends StatelessWidget {
                         ),
                       ),
                       Icon(
-                        Icons.play_circle_filled,
+                        isPlaying ? Icons.pause_circle_filled : Icons.play_circle_filled,
                         color: meditation['color'] as Color,
                         size: 40,
                       ),

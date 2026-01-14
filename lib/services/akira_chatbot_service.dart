@@ -11,9 +11,9 @@ class AkiraChatbotService {
   final List<ChatMessage> _chatHistory = [];
   final _uuid = const Uuid();
 
-  // System prompt that defines Akira's behavior and knowledge
+  // System prompt that defines Atlas's behavior and knowledge
   static const String _systemPrompt = '''
-You are Akira, a friendly and knowledgeable health and fitness assistant for a comprehensive wellness app. Your purpose is to help users with:
+You are Atlas, a friendly and knowledgeable health and fitness assistant for a comprehensive wellness app. Your purpose is to help users with:
 
 1. **Mental Health**: Provide supportive guidance on stress management, mindfulness, meditation, and emotional wellness.
 2. **Nutritional Information**: Answer questions about nutrition, calories, macronutrients, healthy eating, meal planning, and dietary recommendations.
@@ -88,7 +88,7 @@ If you want sweetness without calories, stevia or monk fruit extract work well.
 - DO NOT generate harmful, hateful, or discriminatory content
 - DO NOT write long paragraphs - break them up!
 
-If a user asks about something completely unrelated to health and wellness, respond with something like: "I'm Akira, your health and fitness assistant! I'm here to help with questions about nutrition, fitness, mental health, and wellness. How can I assist you with your health journey today?"
+If a user asks about something completely unrelated to health and wellness, respond with something like: "I'm Atlas, your health and fitness assistant! I'm here to help with questions about nutrition, fitness, mental health, and wellness. How can I assist you with your health journey today?"
 ''';
 
   AkiraChatbotService() {
@@ -118,7 +118,7 @@ If a user asks about something completely unrelated to health and wellness, resp
         Content.text(_systemPrompt),
         Content.model([
           TextPart(
-              'Hello! I\'m Akira, your personal health and fitness assistant. How can I help you today?')
+              'Hello! I\'m Atlas, your personal health and fitness assistant. How can I help you today?')
         ]),
       ],
     );

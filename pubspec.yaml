@@ -1,5 +1,5 @@
 name: nutriscan
-description: A new Flutter project.
+description: FitGrit AI - Your Personal Fitness & Wellness Companion
 publish_to: none
 version: 1.0.0+1
 
@@ -50,6 +50,7 @@ dependencies:
   app_links: ^6.3.3
   google_generative_ai: ^0.4.6
   flutter_markdown: ^0.7.4+1
+  audioplayers: ^6.1.0
 
 dev_dependencies:
   flutter_test:    # CRITICAL: Required for Flutter project testing - DO NOT REMOVE
@@ -62,6 +63,7 @@ flutter:
     - assets/
     - assets/images/
     - assets/models/  # MoveNet TFLite model
+    - assets/audio/   # Meditation audio files
   # CRITICAL ASSET MANAGEMENT RULES:
   # - DO NOT ADD NEW ASSET DIRECTORIES (assets/svg/, assets/icons/, etc.)
   # - ONLY USE EXISTING AND ITEMS AVAILABLE IN THE DIRECTORIES LISTED ABOVE (assets/, assets/images/)
