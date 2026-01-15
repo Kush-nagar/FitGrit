@@ -900,7 +900,7 @@ class _MeditationLibraryScreenState extends State<MeditationLibraryScreen> {
           SnackBar(
             content: Text('Playing: $title - ${durationMinutes}min'),
             behavior: SnackBarBehavior.floating,
-            duration: const Duration(seconds: 2),
+            duration: const Duration(seconds: 3),
             action: SnackBarAction(
               label: 'Stop',
               onPressed: () {

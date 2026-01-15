@@ -796,6 +796,26 @@ service cloud.firestore {
         variant: CustomAppBarVariant.standard,
         title: 'FitGrit AI',
         centerTitle: false,
+        titleWidget: RichText(
+          text: TextSpan(
+            children: [
+              TextSpan(
+                text: 'FitGrit ',
+                style: theme.textTheme.titleLarge?.copyWith(
+                  fontWeight: FontWeight.bold,
+                  color: theme.colorScheme.onSurface,
+                ),
+              ),
+              TextSpan(
+                text: 'AI',
+                style: theme.textTheme.titleLarge?.copyWith(
+                  fontWeight: FontWeight.bold,
+                  color: theme.colorScheme.primary,
+                ),
+              ),
+            ],
+          ),
+        ),
         actions: [
           Container(
             margin: EdgeInsets.only(right: 2.w),
@@ -943,8 +963,19 @@ service cloud.firestore {
                     ),
                   ),
 
+                  // Fitness Graph Carousel
+                  if (!_isLoadingFitness && _weeklyFitnessData.isNotEmpty)
+                    _buildAnimatedCard(
+                      delay: 100,
+                      child: FitnessGraphCarouselWidget(
+                        weeklyData: _weeklyFitnessData,
+                        onTap: () =>
+                            Navigator.pushNamed(context, '/fitness-screen'),
+                      ),
+                    ),
+
                   _buildAnimatedCard(
-                    delay: 100,
+                    delay: 150,
                     child: WaterIntakeCardWidget(
                       currentGlasses: _currentWaterGlasses,
                       targetGlasses: _targetWaterGlasses,
@@ -953,17 +984,6 @@ service cloud.firestore {
                           Navigator.pushNamed(context, '/user-profile-screen'),
                     ),
                   ),
-
-                  // Fitness Graph Carousel
-                  if (!_isLoadingFitness && _weeklyFitnessData.isNotEmpty)
-                    _buildAnimatedCard(
-                      delay: 150,
-                      child: FitnessGraphCarouselWidget(
-                        weeklyData: _weeklyFitnessData,
-                        onTap: () =>
-                            Navigator.pushNamed(context, '/fitness-screen'),
-                      ),
-                    ),
 
                   SizedBox(height: 1.h),
 

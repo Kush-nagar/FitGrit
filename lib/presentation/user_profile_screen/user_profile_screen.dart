@@ -39,11 +39,11 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
 
   // User profile data
   final Map<String, dynamic> _userData = {
-    "name": "Sarah Johnson",
+    "name": "User",
     "avatar":
-        "https://img.rocket.new/generatedImages/rocket_gen_img_122f6d06e-1764690565988.png",
+        "https://img.freepik.com/premium-vector/young-man-avatar-character_24877-9475.jpg",
     "avatarSemanticLabel":
-        "Profile photo of a woman with long brown hair and a warm smile, wearing a light blue top against a neutral background.",
+        "Profile photo of a man with short hair and a friendly smile.",
     "currentStreak": 12,
     "age": 28,
     "height": "5'6\"",
@@ -717,7 +717,11 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
           style: theme.appBarTheme.titleTextStyle,
         ),
         centerTitle: false,
-        automaticallyImplyLeading: false,
+        leading: IconButton(
+          icon: Icon(Icons.arrow_back, color: theme.colorScheme.primary),
+          onPressed: () => Navigator.pop(context),
+          tooltip: 'Back',
+        ),
       ),
       body: SafeArea(
         child: SingleChildScrollView(
@@ -818,7 +822,12 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
         currentRoute: '/user-profile-screen',
         onNavigate: (route) {
           if (route != '/user-profile-screen') {
-            Navigator.pushReplacementNamed(context, route);
+            if (route == '/home-dashboard-screen') {
+              // Pop back to home since profile is pushed on top of home
+              Navigator.pop(context);
+            } else {
+              Navigator.pushReplacementNamed(context, route);
+            }
           }
         },
       ),

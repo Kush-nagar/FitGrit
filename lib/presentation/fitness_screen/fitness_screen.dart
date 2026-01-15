@@ -707,7 +707,7 @@ class _FitnessScreenState extends State<FitnessScreen> {
       backgroundColor: theme.scaffoldBackgroundColor,
       appBar: CustomAppBar(
         variant: CustomAppBarVariant.standard,
-        title: 'Fitness Tracker',
+        title: 'Presidential Fitness Test Assessment',
         centerTitle: false,
         leading: _showWorkoutSelection
             ? null

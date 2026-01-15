@@ -235,7 +235,7 @@ class _FitnessGraphCarouselWidgetState
                             ),
                             SizedBox(width: 2.w),
                             Text(
-                              'Presidential Fitness Test Standard',
+                              'Presidential Fitness Test Baseline',
                               style: theme.textTheme.labelSmall?.copyWith(
                                 color: Colors.orange,
                                 fontWeight: FontWeight.w600,

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'dart:math' as math;
 import '../../routes/app_routes.dart';
 import '../../services/onboarding_service.dart';
+import 'package:google_fonts/google_fonts.dart';
 
 class AnimatedIntroScreen extends StatefulWidget {
   const AnimatedIntroScreen({super.key});
@@ -17,6 +18,7 @@ class _AnimatedIntroScreenState extends State<AnimatedIntroScreen>
   late AnimationController _nutritionController;
   late AnimationController _wellnessController;
   late AnimationController _aiController;
+  late AnimationController _welcomeController;
 
   late Animation<Offset> _presidentSlideIn;
   late Animation<Offset> _presidentSlideOut;
@@ -29,6 +31,9 @@ class _AnimatedIntroScreenState extends State<AnimatedIntroScreen>
   late Animation<Offset> _aiSlideIn;
   late Animation<Offset> _aiSlideOut;
 
+  late Animation<double> _welcomeFade;
+  late Animation<double> _welcomeScale;
+
   late Animation<double> _presidentOpacity;
   late Animation<double> _executiveOrderOpacity;
   late Animation<double> _nutritionOpacity;
@@ -40,6 +45,7 @@ class _AnimatedIntroScreenState extends State<AnimatedIntroScreen>
   bool _showNutrition = false;
   bool _showWellness = false;
   bool _showAI = false;
+  bool _showWelcome = false;
 
   final OnboardingService _onboardingService = OnboardingService();
 
@@ -53,7 +59,7 @@ class _AnimatedIntroScreenState extends State<AnimatedIntroScreen>
   void _setupAnimations() {
     // Presidential Logo Animation (White House)
     _presidentController = AnimationController(
-      duration: const Duration(milliseconds: 2400),
+      duration: const Duration(milliseconds: 1600),
       vsync: this,
     );
 
@@ -62,7 +68,7 @@ class _AnimatedIntroScreenState extends State<AnimatedIntroScreen>
       end: Offset.zero,
     ).animate(CurvedAnimation(
       parent: _presidentController,
-      curve: const Interval(0.0, 0.3, curve: Curves.easeOutCubic),
+      curve: const Interval(0.0, 0.35, curve: Curves.easeOutQuart),
     ));
 
     _presidentSlideOut = Tween<Offset>(
@@ -70,18 +76,18 @@ class _AnimatedIntroScreenState extends State<AnimatedIntroScreen>
       end: const Offset(1.5, 0),
     ).animate(CurvedAnimation(
       parent: _presidentController,
-      curve: const Interval(0.7, 1.0, curve: Curves.easeInCubic),
+      curve: const Interval(0.65, 1.0, curve: Curves.easeInQuart),
     ));
 
     _presidentOpacity = TweenSequence<double>([
-      TweenSequenceItem(tween: Tween(begin: 0.0, end: 1.0), weight: 30),
-      TweenSequenceItem(tween: ConstantTween(1.0), weight: 40),
-      TweenSequenceItem(tween: Tween(begin: 1.0, end: 0.0), weight: 30),
+      TweenSequenceItem(tween: Tween(begin: 0.0, end: 1.0).chain(CurveTween(curve: Curves.easeInOutQuad)), weight: 35),
+      TweenSequenceItem(tween: ConstantTween(1.0), weight: 30),
+      TweenSequenceItem(tween: Tween(begin: 1.0, end: 0.0).chain(CurveTween(curve: Curves.easeInOutQuad)), weight: 35),
     ]).animate(_presidentController);
 
     // Executive Order Logo Animation
     _executiveOrderController = AnimationController(
-      duration: const Duration(milliseconds: 2400),
+      duration: const Duration(milliseconds: 1600),
       vsync: this,
     );
 
@@ -90,7 +96,7 @@ class _AnimatedIntroScreenState extends State<AnimatedIntroScreen>
       end: Offset.zero,
     ).animate(CurvedAnimation(
       parent: _executiveOrderController,
-      curve: const Interval(0.0, 0.3, curve: Curves.easeOutCubic),
+      curve: const Interval(0.0, 0.35, curve: Curves.easeOutQuart),
     ));
 
     _executiveOrderSlideOut = Tween<Offset>(
@@ -98,18 +104,18 @@ class _AnimatedIntroScreenState extends State<AnimatedIntroScreen>
       end: const Offset(1.5, 0),
     ).animate(CurvedAnimation(
       parent: _executiveOrderController,
-      curve: const Interval(0.7, 1.0, curve: Curves.easeInCubic),
+      curve: const Interval(0.65, 1.0, curve: Curves.easeInQuart),
     ));
 
     _executiveOrderOpacity = TweenSequence<double>([
-      TweenSequenceItem(tween: Tween(begin: 0.0, end: 1.0), weight: 30),
-      TweenSequenceItem(tween: ConstantTween(1.0), weight: 40),
-      TweenSequenceItem(tween: Tween(begin: 1.0, end: 0.0), weight: 30),
+      TweenSequenceItem(tween: Tween(begin: 0.0, end: 1.0).chain(CurveTween(curve: Curves.easeInOutQuad)), weight: 35),
+      TweenSequenceItem(tween: ConstantTween(1.0), weight: 30),
+      TweenSequenceItem(tween: Tween(begin: 1.0, end: 0.0).chain(CurveTween(curve: Curves.easeInOutQuad)), weight: 35),
     ]).animate(_executiveOrderController);
 
     // Nutrition Logo Animation
     _nutritionController = AnimationController(
-      duration: const Duration(milliseconds: 2400),
+      duration: const Duration(milliseconds: 1600),
       vsync: this,
     );
 
@@ -118,7 +124,7 @@ class _AnimatedIntroScreenState extends State<AnimatedIntroScreen>
       end: Offset.zero,
     ).animate(CurvedAnimation(
       parent: _nutritionController,
-      curve: const Interval(0.0, 0.3, curve: Curves.easeOutCubic),
+      curve: const Interval(0.0, 0.35, curve: Curves.easeOutQuart),
     ));
 
     _nutritionSlideOut = Tween<Offset>(
@@ -126,18 +132,18 @@ class _AnimatedIntroScreenState extends State<AnimatedIntroScreen>
       end: const Offset(1.5, 0),
     ).animate(CurvedAnimation(
       parent: _nutritionController,
-      curve: const Interval(0.7, 1.0, curve: Curves.easeInCubic),
+      curve: const Interval(0.65, 1.0, curve: Curves.easeInQuart),
     ));
 
     _nutritionOpacity = TweenSequence<double>([
-      TweenSequenceItem(tween: Tween(begin: 0.0, end: 1.0), weight: 30),
-      TweenSequenceItem(tween: ConstantTween(1.0), weight: 40),
-      TweenSequenceItem(tween: Tween(begin: 1.0, end: 0.0), weight: 30),
+      TweenSequenceItem(tween: Tween(begin: 0.0, end: 1.0).chain(CurveTween(curve: Curves.easeInOutQuad)), weight: 35),
+      TweenSequenceItem(tween: ConstantTween(1.0), weight: 30),
+      TweenSequenceItem(tween: Tween(begin: 1.0, end: 0.0).chain(CurveTween(curve: Curves.easeInOutQuad)), weight: 35),
     ]).animate(_nutritionController);
 
     // Wellness Logo Animation
     _wellnessController = AnimationController(
-      duration: const Duration(milliseconds: 2400),
+      duration: const Duration(milliseconds: 1600),
       vsync: this,
     );
 
@@ -146,7 +152,7 @@ class _AnimatedIntroScreenState extends State<AnimatedIntroScreen>
       end: Offset.zero,
     ).animate(CurvedAnimation(
       parent: _wellnessController,
-      curve: const Interval(0.0, 0.3, curve: Curves.easeOutCubic),
+      curve: const Interval(0.0, 0.35, curve: Curves.easeOutQuart),
     ));
 
     _wellnessSlideOut = Tween<Offset>(
@@ -154,18 +160,18 @@ class _AnimatedIntroScreenState extends State<AnimatedIntroScreen>
       end: const Offset(1.5, 0),
     ).animate(CurvedAnimation(
       parent: _wellnessController,
-      curve: const Interval(0.7, 1.0, curve: Curves.easeInCubic),
+      curve: const Interval(0.65, 1.0, curve: Curves.easeInQuart),
     ));
 
     _wellnessOpacity = TweenSequence<double>([
-      TweenSequenceItem(tween: Tween(begin: 0.0, end: 1.0), weight: 30),
-      TweenSequenceItem(tween: ConstantTween(1.0), weight: 40),
-      TweenSequenceItem(tween: Tween(begin: 1.0, end: 0.0), weight: 30),
+      TweenSequenceItem(tween: Tween(begin: 0.0, end: 1.0).chain(CurveTween(curve: Curves.easeInOutQuad)), weight: 35),
+      TweenSequenceItem(tween: ConstantTween(1.0), weight: 30),
+      TweenSequenceItem(tween: Tween(begin: 1.0, end: 0.0).chain(CurveTween(curve: Curves.easeInOutQuad)), weight: 35),
     ]).animate(_wellnessController);
 
     // AI Logo Animation
     _aiController = AnimationController(
-      duration: const Duration(milliseconds: 2400),
+      duration: const Duration(milliseconds: 1600),
       vsync: this,
     );
 
@@ -174,7 +180,7 @@ class _AnimatedIntroScreenState extends State<AnimatedIntroScreen>
       end: Offset.zero,
     ).animate(CurvedAnimation(
       parent: _aiController,
-      curve: const Interval(0.0, 0.3, curve: Curves.easeOutCubic),
+      curve: const Interval(0.0, 0.35, curve: Curves.easeOutQuart),
     ));
 
     _aiSlideOut = Tween<Offset>(
@@ -182,21 +188,41 @@ class _AnimatedIntroScreenState extends State<AnimatedIntroScreen>
       end: const Offset(1.5, 0),
     ).animate(CurvedAnimation(
       parent: _aiController,
-      curve: const Interval(0.7, 1.0, curve: Curves.easeInCubic),
+      curve: const Interval(0.65, 1.0, curve: Curves.easeInQuart),
     ));
 
     _aiOpacity = TweenSequence<double>([
-      TweenSequenceItem(tween: Tween(begin: 0.0, end: 1.0), weight: 30),
-      TweenSequenceItem(tween: ConstantTween(1.0), weight: 40),
-      TweenSequenceItem(tween: Tween(begin: 1.0, end: 0.0), weight: 30),
+      TweenSequenceItem(tween: Tween(begin: 0.0, end: 1.0).chain(CurveTween(curve: Curves.easeInOutQuad)), weight: 35),
+      TweenSequenceItem(tween: ConstantTween(1.0), weight: 30),
+      TweenSequenceItem(tween: Tween(begin: 1.0, end: 0.0).chain(CurveTween(curve: Curves.easeInOutQuad)), weight: 35),
     ]).animate(_aiController);
+
+    // Welcome Text Animation
+    _welcomeController = AnimationController(
+      duration: const Duration(milliseconds: 1200),
+      vsync: this,
+    );
+
+    _welcomeFade = Tween<double>(begin: 0.0, end: 1.0).animate(
+      CurvedAnimation(
+        parent: _welcomeController,
+        curve: Curves.easeInOutQuad,
+      ),
+    );
+
+    _welcomeScale = Tween<double>(begin: 0.85, end: 1.0).animate(
+      CurvedAnimation(
+        parent: _welcomeController,
+        curve: Curves.easeOutCubic,
+      ),
+    );
   }
 
   Future<void> _startAnimationSequence() async {
     // Presidential Logo
     setState(() => _showPresident = true);
     await _presidentController.forward();
-    await Future.delayed(const Duration(milliseconds: 200));
+    await Future.delayed(const Duration(milliseconds: 100));
 
     // Executive Order Logo
     setState(() {
@@ -205,7 +231,7 @@ class _AnimatedIntroScreenState extends State<AnimatedIntroScreen>
     });
     _presidentController.reset();
     await _executiveOrderController.forward();
-    await Future.delayed(const Duration(milliseconds: 200));
+    await Future.delayed(const Duration(milliseconds: 100));
 
     // Nutrition Logo
     setState(() {
@@ -214,7 +240,7 @@ class _AnimatedIntroScreenState extends State<AnimatedIntroScreen>
     });
     _executiveOrderController.reset();
     await _nutritionController.forward();
-    await Future.delayed(const Duration(milliseconds: 200));
+    await Future.delayed(const Duration(milliseconds: 100));
 
     // Wellness Logo
     setState(() {
@@ -223,7 +249,7 @@ class _AnimatedIntroScreenState extends State<AnimatedIntroScreen>
     });
     _nutritionController.reset();
     await _wellnessController.forward();
-    await Future.delayed(const Duration(milliseconds: 200));
+    await Future.delayed(const Duration(milliseconds: 100));
 
     // AI Logo
     setState(() {
@@ -233,9 +259,17 @@ class _AnimatedIntroScreenState extends State<AnimatedIntroScreen>
     _wellnessController.reset();
     await _aiController.forward();
 
+    // Welcome Text
+    setState(() {
+      _showAI = false;
+      _showWelcome = true;
+    });
+    _aiController.reset();
+    await _welcomeController.forward();
+
     // Navigate to next screen based on onboarding status
     if (mounted) {
-      await Future.delayed(const Duration(milliseconds: 500));
+      await Future.delayed(const Duration(milliseconds: 800));
       
       // Check if user has completed onboarding
       final hasCompletedOnboarding =
@@ -258,6 +292,7 @@ class _AnimatedIntroScreenState extends State<AnimatedIntroScreen>
     _nutritionController.dispose();
     _wellnessController.dispose();
     _aiController.dispose();
+    _welcomeController.dispose();
     super.dispose();
   }
 
@@ -387,6 +422,30 @@ class _AnimatedIntroScreenState extends State<AnimatedIntroScreen>
                       child: FadeTransition(
                         opacity: _aiOpacity,
                         child: _buildAILogo(size),
+                      ),
+                    );
+                  },
+                ),
+              ),
+
+            // Welcome Text
+            if (_showWelcome)
+              Center(
+                child: AnimatedBuilder(
+                  animation: _welcomeController,
+                  builder: (context, child) {
+                    return FadeTransition(
+                      opacity: _welcomeFade,
+                      child: ScaleTransition(
+                        scale: _welcomeScale,
+                        child: Text(
+                          'Welcome To Wellness Journey!',
+                          style: GoogleFonts.righteous(
+                            fontSize: 56,
+                            letterSpacing: 4,
+                            color: theme.colorScheme.primary,
+                          ),
+                        ),
                       ),
                     );
                   },
