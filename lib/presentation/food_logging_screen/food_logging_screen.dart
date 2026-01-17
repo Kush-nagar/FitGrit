@@ -67,6 +67,9 @@ class _FoodLoggingScreenState extends State<FoodLoggingScreen> {
           ingredients: _ingredients,
         );
 
+        // Add the image path to the nutrition data
+        nutritionData['imagePath'] = _imagePath;
+
         setState(() {
           _nutritionInfo = NutritionInfo.fromJson(nutritionData);
           _isLoading = false;

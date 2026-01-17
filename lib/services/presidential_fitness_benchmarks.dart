@@ -314,6 +314,33 @@ class PresidentialFitnessBenchmarks {
     );
   }
 
+  /// Compare push-ups performance against benchmark
+  static BenchmarkComparison? comparePushUps({
+    required int reps,
+    required int age,
+    required Gender gender,
+  }) {
+    final benchmark = getBenchmark(
+      exerciseType: ExerciseType.pushUp,
+      age: age,
+      gender: gender,
+    );
+
+    if (benchmark == null) return null;
+
+    final difference = reps - benchmark;
+    final passed = reps >= benchmark;
+
+    return BenchmarkComparison(
+      passed: passed,
+      userValue: reps.toDouble(),
+      benchmarkValue: benchmark,
+      difference: difference.abs(),
+      differenceText: '${difference.abs().round()} reps',
+      unit: 'reps',
+    );
+  }
+
   /// Compare shuttle run performance against benchmark
   /// Note: Lower time is better for shuttle run
   static BenchmarkComparison? compareShuttleRun({
@@ -400,6 +427,7 @@ class PresidentialFitnessBenchmarks {
       ExerciseType.shuttleRun: ageBenchmarks['shuttleRun']!,
       ExerciseType.vSitAndReach: ageBenchmarks['vSitReach']!,
       ExerciseType.pullUp: ageBenchmarks['pullUps']!,
+      ExerciseType.pushUp: ageBenchmarks['pushUps']!,
     };
   }
 }

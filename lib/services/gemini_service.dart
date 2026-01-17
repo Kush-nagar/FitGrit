@@ -30,18 +30,36 @@ class GeminiService {
     final base64Data = base64Encode(safeBytes);
 
     final prompt = '''
-You are a helpful assistant that must identify the different ingredients / food items in the image. 
+You are a helpful assistant that must identify ALL the different ingredients and food items visible in the image. 
 YOU MUST ONLY OUTPUT a JSON array (no markdown, no text outside JSON).
-Each element must have:
-- "name": string, the detected food/ingredient
-- "confidence": number between 0 and 1
 
-Example:
+IMPORTANT: Identify EACH distinct food item or ingredient separately. If there are multiple items, list them all individually.
+
+Each element must have:
+- "name": string, the detected food/ingredient (be specific, e.g., "Red Onion", "Cherry Tomatoes", "Ground Beef")
+- "confidence": number between 0 and 1 (higher means more confident)
+
+Examples:
+
+If the image shows a salad with multiple ingredients:
 [
+  {"name":"Lettuce","confidence":0.95},
   {"name":"Tomato","confidence":0.93},
-  {"name":"Onion","confidence":0.87}
+  {"name":"Cucumber","confidence":0.90},
+  {"name":"Red Onion","confidence":0.87},
+  {"name":"Feta Cheese","confidence":0.85},
+  {"name":"Olive Oil","confidence":0.78}
 ]
-Return nothing else.
+
+If the image shows ingredients for a recipe:
+[
+  {"name":"Chicken Breast","confidence":0.94},
+  {"name":"Broccoli","confidence":0.92},
+  {"name":"Garlic","confidence":0.88},
+  {"name":"Soy Sauce","confidence":0.82}
+]
+
+Return nothing else. Identify as many distinct items as you can see clearly.
 ''';
 
     final body = {
@@ -203,6 +221,7 @@ Return nothing else.
   Future<Map<String, dynamic>> getNutritionInfo({
     required String imagePath,
     required List<String> ingredients,
+    bool includeImagePath = true,
   }) async {
     final file = File(imagePath);
     if (!await file.exists()) {
@@ -402,15 +421,19 @@ Return nothing else than the JSON object.
 You are a recipe generator. ONLY OUTPUT a JSON ARRAY (no markdown, explanation or extraneous text).
 Return EXACTLY $maxRecipes recipe objects that can be made using the provided ingredients.
 
-CRITICAL: Generate ONLY food, drink, and edible recipes. DO NOT generate beauty products, face masks, skincare items, or any non-edible items.
-Focus exclusively on recipes for meals, snacks, beverages, desserts, and other consumable food items.
+CRITICAL REQUIREMENTS:
+1. Generate ONLY food, drink, and edible recipes. DO NOT generate beauty products, face masks, skincare items, or any non-edible items.
+2. Focus exclusively on recipes for meals, snacks, beverages, desserts, and other consumable food items.
+3. PRIORITIZE recipes that use MULTIPLE ingredients from the provided list. The best recipes should incorporate as many of the detected ingredients as possible.
+4. Each recipe should clearly utilize at least 2-3 of the provided ingredients as main components.
+5. You may add common pantry items (salt, pepper, oil, water, etc.) but the core of each recipe should feature the provided ingredients.
 
 IMPORTANT: Each recipe object MUST include ALL of these fields:
 
 {
   "name": string (recipe name),
-  "description": string (brief description),
-  "ingredients": array of strings (complete ingredient list with quantities),
+  "description": string (brief description mentioning which detected ingredients are used),
+  "ingredients": array of strings (complete ingredient list with quantities - HIGHLIGHT the detected ingredients),
   "steps": array of strings (detailed cooking steps),
   "nutrition": {
     "calories": number (total calories per serving),
@@ -426,38 +449,40 @@ IMPORTANT: Each recipe object MUST include ALL of these fields:
   "servings": number
 }
 
-Example:
+Example with detected ingredients [Chicken Breast, Tomato, Garlic, Olive Oil]:
 [
   {
-    "name": "Tomato Basil Pasta",
-    "description": "A simple and delicious Italian pasta dish with fresh tomatoes and basil",
-    "ingredients": ["200g pasta", "3 tomatoes, diced", "2 cloves garlic, minced", "Fresh basil leaves", "2 tbsp olive oil", "Salt and pepper to taste", "Parmesan cheese"],
+    "name": "Garlic Tomato Chicken",
+    "description": "A flavorful one-pan dish featuring chicken breast, fresh tomatoes, and aromatic garlic from your scanned ingredients",
+    "ingredients": ["2 chicken breasts (from scan)", "4 tomatoes, diced (from scan)", "4 cloves garlic, minced (from scan)", "2 tbsp olive oil (from scan)", "1 tsp dried basil", "Salt and pepper to taste", "Fresh parsley for garnish"],
     "steps": [
-      "Boil pasta according to package instructions until al dente",
-      "Heat olive oil in a pan and sauté garlic until fragrant",
-      "Add diced tomatoes and cook for 5-7 minutes until softened",
-      "Toss cooked pasta with tomato sauce and fresh basil",
-      "Season with salt and pepper, garnish with Parmesan cheese"
+      "Season chicken breasts with salt and pepper",
+      "Heat olive oil in a large skillet over medium-high heat",
+      "Add minced garlic and sauté for 30 seconds until fragrant",
+      "Add chicken breasts and cook for 5-6 minutes per side until golden",
+      "Add diced tomatoes and basil, reduce heat to medium",
+      "Simmer for 10-12 minutes until chicken is cooked through and tomatoes have broken down",
+      "Garnish with fresh parsley and serve hot"
     ],
     "nutrition": {
-      "calories": 420,
-      "protein": 12,
-      "carbs": 65,
-      "fat": 14,
-      "fiber": 5,
-      "sugar": 6,
-      "sodium": 320
+      "calories": 320,
+      "protein": 42,
+      "carbs": 12,
+      "fat": 12,
+      "fiber": 3,
+      "sugar": 7,
+      "sodium": 380
     },
     "prepTimeMinutes": 10,
-    "cookTimeMinutes": 15,
+    "cookTimeMinutes": 20,
     "servings": 2
   }
 ]
 
-Available ingredients:
+Available ingredients (USE THESE IN YOUR RECIPES):
 ${jsonEncode(ingredients)}
 
-Generate $maxRecipes diverse recipes. Return nothing else than the JSON array.
+Generate $maxRecipes diverse recipes that maximize the use of these detected ingredients. Return nothing else than the JSON array.
 ''';
 
     final body = {

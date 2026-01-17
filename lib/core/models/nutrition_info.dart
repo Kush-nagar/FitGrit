@@ -9,6 +9,7 @@ class NutritionInfo {
   final double sugar; // grams
   final double sodium; // mg
   final String servingSize;
+  final String? imagePath; // path to the uploaded food image
   final Map<String, dynamic>? additionalInfo; // for vitamins, minerals, etc.
 
   NutritionInfo({
@@ -22,6 +23,7 @@ class NutritionInfo {
     this.sugar = 0,
     this.sodium = 0,
     this.servingSize = '100g',
+    this.imagePath,
     this.additionalInfo,
   });
 
@@ -39,6 +41,7 @@ class NutritionInfo {
       sugar: (json['sugar'] ?? 0).toDouble(),
       sodium: (json['sodium'] ?? 0).toDouble(),
       servingSize: json['servingSize'] ?? '100g',
+      imagePath: json['imagePath'] as String?,
       additionalInfo: json['additionalInfo'] as Map<String, dynamic>?,
     );
   }
@@ -59,6 +62,11 @@ class NutritionInfo {
       'servingSize': servingSize,
       'timestamp': DateTime.now().toIso8601String(),
     };
+
+    // Only include imagePath if it's not null
+    if (imagePath != null && imagePath!.isNotEmpty) {
+      data['imagePath'] = imagePath;
+    }
 
     // Only include additionalInfo if it's not null and not empty
     if (additionalInfo != null && additionalInfo!.isNotEmpty) {

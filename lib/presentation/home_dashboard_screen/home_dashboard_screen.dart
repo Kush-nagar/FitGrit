@@ -1019,7 +1019,7 @@ service cloud.firestore {
                                         DateTime.parse(food['timestamp']),
                                       )
                                     : 'N/A',
-                                'image':
+                                'image': food['imagePath'] as String? ??
                                     'https://images.unsplash.com/photo-1546069901-ba9599a7e63c',
                                 'semanticLabel':
                                     'Food item: ${food['foodName'] ?? food['name']}',

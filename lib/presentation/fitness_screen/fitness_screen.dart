@@ -2642,8 +2642,11 @@ class _FitnessScreenState extends State<FitnessScreen> {
         gender: _userGender!,
       );
     } else if (_selectedExercise == ExerciseType.pushUp) {
-      // Push-ups don't have a benchmark in Presidential Fitness Test
-      return [];
+      comparison = PresidentialFitnessBenchmarks.comparePushUps(
+        reps: repCount,
+        age: _userAge!,
+        gender: _userGender!,
+      );
     }
 
     if (comparison == null) return [];

@@ -1,1 +1,25 @@
-{"flutter":{"platforms":{"android":{"default":{"projectId":"presapp-97031","appId":"1:796230145928:android:66f6e6fb061c637084cc3d","fileOutput":"android/app/google-services.json"}},"dart":{"lib/firebase_options.dart":{"projectId":"presapp-97031","configurations":{"android":"1:796230145928:android:66f6e6fb061c637084cc3d","ios":"1:796230145928:ios:0f9c46432c3c6ee884cc3d"}}}}}}
+{
+  "firestore": {
+    "rules": "firestore.rules"
+  },
+  "flutter": {
+    "platforms": {
+      "android": {
+        "default": {
+          "projectId": "presapp-97031",
+          "appId": "1:796230145928:android:66f6e6fb061c637084cc3d",
+          "fileOutput": "android/app/google-services.json"
+        }
+      },
+      "dart": {
+        "lib/firebase_options.dart": {
+          "projectId": "presapp-97031",
+          "configurations": {
+            "android": "1:796230145928:android:66f6e6fb061c637084cc3d",
+            "ios": "1:796230145928:ios:0f9c46432c3c6ee884cc3d"
+          }
+        }
+      }
+    }
+  }
+}

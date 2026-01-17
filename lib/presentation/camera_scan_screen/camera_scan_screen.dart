@@ -13,7 +13,6 @@ import '../../widgets/custom_bottom_bar.dart';
 import '../../widgets/custom_icon_widget.dart';
 import './widgets/camera_controls_widget.dart';
 import './widgets/camera_preview_widget.dart';
-import './widgets/confidence_overlay_widget.dart';
 
 class CameraScanScreen extends StatefulWidget {
   const CameraScanScreen({super.key});
@@ -33,9 +32,8 @@ class _CameraScanScreenState extends State<CameraScanScreen>
 
   late GeminiService _geminiService;
 
-  // Recognition data
-  String? _recognizedFood;
-  double? _confidenceScore;
+  // Recognition data - now supports multiple foods
+  List<Map<String, dynamic>> _recognizedFoods = [];
   bool _showConfidenceOverlay = false;
 
   // Animation controllers
@@ -227,7 +225,7 @@ class _CameraScanScreenState extends State<CameraScanScreen>
 
   Future<void> _processImage(XFile image) async {
     try {
-      // Call Gemini API to detect foods
+      // Call Gemini API to detect multiple foods
       final rawResults = await _geminiService.detectFoods(image.path);
 
       if (rawResults.isEmpty) {
@@ -238,23 +236,34 @@ class _CameraScanScreenState extends State<CameraScanScreen>
         return;
       }
 
-      // Take the highest confidence result
-      final topResult = rawResults.reduce((a, b) =>
-          (a['confidence'] as double) > (b['confidence'] as double) ? a : b);
+      // Sort by confidence and keep all results (can filter by min threshold if needed)
+      final sortedResults = List<Map<String, dynamic>>.from(rawResults)
+        ..sort((a, b) => (b['confidence'] as double)
+            .compareTo(a['confidence'] as double));
 
-      final foodName = topResult['name'] as String;
-      final confidence = (topResult['confidence'] as num).toDouble();
+      // Filter out low confidence items (optional, threshold can be adjusted)
+      final minConfidence = 0.3;
+      final filteredResults = sortedResults
+          .where((item) => (item['confidence'] as double) >= minConfidence)
+          .toList();
+
+      if (filteredResults.isEmpty) {
+        _showNoFoodDetectedDialog();
+        setState(() {
+          _isProcessing = false;
+        });
+        return;
+      }
 
       setState(() {
-        _recognizedFood = foodName;
-        _confidenceScore = confidence;
+        _recognizedFoods = filteredResults;
         _showConfidenceOverlay = true;
       });
 
       _overlayAnimationController.forward();
 
       // Show result sheet after brief delay
-      await Future.delayed(const Duration(milliseconds: 800));
+      await Future.delayed(const Duration(milliseconds: 1200));
       _showRecognitionResultSheet();
     } catch (e) {
       _showProcessingErrorDialog(e.toString());
@@ -265,20 +274,18 @@ class _CameraScanScreenState extends State<CameraScanScreen>
   }
 
   void _showRecognitionResultSheet() {
-    // Navigate to recognition results screen
+    // Navigate to recognition results screen with all detected foods
     Navigator.pushNamed(
       context,
       '/recognition-results-screen',
       arguments: {
         'imagePath': _capturedImage!.path,
         'imageSource': 'camera',
-        'detectedIngredients': [
-          {
-            'name': _recognizedFood!,
-            'confidence': _confidenceScore!,
-            'category': 'detected',
-          }
-        ],
+        'detectedIngredients': _recognizedFoods.map((food) => {
+          'name': food['name'] as String,
+          'confidence': food['confidence'] as double,
+          'category': 'detected',
+        }).toList(),
       },
     );
   }
@@ -287,8 +294,7 @@ class _CameraScanScreenState extends State<CameraScanScreen>
     HapticFeedback.lightImpact();
     setState(() {
       _capturedImage = null;
-      _recognizedFood = null;
-      _confidenceScore = null;
+      _recognizedFoods = [];
       _showConfidenceOverlay = false;
     });
     _overlayAnimationController.reset();
@@ -466,6 +472,136 @@ class _CameraScanScreenState extends State<CameraScanScreen>
     );
   }
 
+  Widget _buildMultipleFoodsOverlay() {
+    final theme = Theme.of(context);
+    
+    return Container(
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [
+            theme.colorScheme.primary.withOpacity(0.95),
+            theme.colorScheme.secondary.withOpacity(0.95),
+          ],
+        ),
+        borderRadius: BorderRadius.circular(20),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.3),
+            blurRadius: 20,
+            offset: const Offset(0, 10),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: Colors.white.withOpacity(0.2),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Icon(
+                  Icons.check_circle,
+                  color: Colors.white,
+                  size: 24,
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Text(
+                  '${_recognizedFoods.length} Food Item${_recognizedFoods.length > 1 ? 's' : ''} Detected',
+                  style: theme.textTheme.titleLarge?.copyWith(
+                    color: Colors.white,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 16),
+          ...List.generate(_recognizedFoods.length, (index) {
+            final food = _recognizedFoods[index];
+            final foodName = food['name'] as String;
+            final confidence = (food['confidence'] as double) * 100;
+            
+            return Padding(
+              padding: EdgeInsets.only(bottom: index < _recognizedFoods.length - 1 ? 12 : 0),
+              child: Row(
+                children: [
+                  Container(
+                    width: 32,
+                    height: 32,
+                    alignment: Alignment.center,
+                    decoration: BoxDecoration(
+                      color: Colors.white.withOpacity(0.2),
+                      shape: BoxShape.circle,
+                    ),
+                    child: Text(
+                      '${index + 1}',
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontWeight: FontWeight.bold,
+                        fontSize: 14,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          foodName,
+                          style: theme.textTheme.bodyLarge?.copyWith(
+                            color: Colors.white,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                        const SizedBox(height: 4),
+                        Row(
+                          children: [
+                            Expanded(
+                              child: ClipRRect(
+                                borderRadius: BorderRadius.circular(4),
+                                child: LinearProgressIndicator(
+                                  value: confidence / 100,
+                                  backgroundColor: Colors.white.withOpacity(0.2),
+                                  valueColor: AlwaysStoppedAnimation<Color>(
+                                    Colors.white.withOpacity(0.8),
+                                  ),
+                                  minHeight: 6,
+                                ),
+                              ),
+                            ),
+                            const SizedBox(width: 8),
+                            Text(
+                              '${confidence.toStringAsFixed(0)}%',
+                              style: theme.textTheme.bodySmall?.copyWith(
+                                color: Colors.white.withOpacity(0.9),
+                                fontWeight: FontWeight.w500,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            );
+          }),
+        ],
+      ),
+    );
+  }
+
   @override
   void dispose() {
     _cameraController?.dispose();
@@ -535,18 +671,15 @@ class _CameraScanScreenState extends State<CameraScanScreen>
               ),
             ),
 
-          // Confidence Overlay
-          if (_showConfidenceOverlay && _recognizedFood != null)
+          // Confidence Overlay - Multiple Foods
+          if (_showConfidenceOverlay && _recognizedFoods.isNotEmpty)
             Positioned(
               top: 120,
               left: 24,
               right: 24,
               child: FadeTransition(
                 opacity: _overlayFadeAnimation,
-                child: ConfidenceOverlayWidget(
-                  foodName: _recognizedFood!,
-                  confidence: _confidenceScore!,
-                ),
+                child: _buildMultipleFoodsOverlay(),
               ),
             ),
 

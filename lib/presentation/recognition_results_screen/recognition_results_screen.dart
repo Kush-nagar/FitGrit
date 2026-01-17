@@ -3,6 +3,8 @@ import 'package:flutter/services.dart';
 import 'package:sizer/sizer.dart';
 
 import '../../core/app_export.dart';
+import '../../core/config/app_config.dart';
+import '../../services/gemini_service.dart';
 import '../../widgets/custom_app_bar.dart';
 import '../../widgets/custom_bottom_bar.dart';
 import '../../widgets/custom_icon_widget.dart';
@@ -24,6 +26,9 @@ class _RecognitionResultsScreenState extends State<RecognitionResultsScreen> {
   bool _isLoading = true;
   String? _capturedImagePath;
   List<Map<String, dynamic>> _recognizedIngredients = [];
+  bool _showNutritionBreakdown = false;
+  bool _isLoadingNutrition = false;
+  List<Map<String, dynamic>> _nutritionData = [];
 
   /// Minimum confidence threshold to keep a detected label (adjustable)
   final double _minConfidence = 0.35;
@@ -159,6 +164,55 @@ class _RecognitionResultsScreenState extends State<RecognitionResultsScreen> {
     });
 
     HapticFeedback.lightImpact();
+  }
+
+  Future<void> _fetchNutritionBreakdown() async {
+    if (_recognizedIngredients.isEmpty || _capturedImagePath == null) return;
+
+    setState(() {
+      _isLoadingNutrition = true;
+      _showNutritionBreakdown = true;
+    });
+
+    try {
+      final geminiService = GeminiService(apiKey: AppConfig.geminiApiKey);
+      final ingredientNames = _recognizedIngredients
+          .map((ingredient) => ingredient['name'] as String)
+          .toList();
+
+      // Get comprehensive nutrition info
+      final nutritionInfo = await geminiService.getNutritionInfo(
+        imagePath: _capturedImagePath!,
+        ingredients: ingredientNames,
+      );
+
+      setState(() {
+        _nutritionData = [nutritionInfo];
+        _isLoadingNutrition = false;
+      });
+    } catch (e) {
+      setState(() {
+        _isLoadingNutrition = false;
+      });
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Failed to load nutrition info: ${e.toString()}'),
+            backgroundColor: Theme.of(context).colorScheme.error,
+          ),
+        );
+      }
+    }
+  }
+
+  void _toggleNutritionBreakdown() {
+    if (!_showNutritionBreakdown && _nutritionData.isEmpty) {
+      _fetchNutritionBreakdown();
+    } else {
+      setState(() {
+        _showNutritionBreakdown = !_showNutritionBreakdown;
+      });
+    }
   }
 
   void _showAddIngredientModal() {
@@ -550,6 +604,10 @@ class _RecognitionResultsScreenState extends State<RecognitionResultsScreen> {
                                         ),
                                       ),
                                     ),
+
+                                    // Nutrition Breakdown Section
+                                    SizedBox(height: 2.h),
+                                    _buildNutritionSection(theme),
                                   ],
                                 ),
                               ),
@@ -703,6 +761,334 @@ class _RecognitionResultsScreenState extends State<RecognitionResultsScreen> {
               ),
         ),
       ],
+    );
+  }
+
+  Widget _buildNutritionSection(ThemeData theme) {
+    return Card(
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(16),
+      ),
+      elevation: 2,
+      child: Column(
+        children: [
+          InkWell(
+            onTap: _toggleNutritionBreakdown,
+            borderRadius: BorderRadius.circular(16),
+            child: Padding(
+              padding: EdgeInsets.all(4.w),
+              child: Row(
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(8),
+                    decoration: BoxDecoration(
+                      color: theme.colorScheme.primaryContainer,
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: CustomIconWidget(
+                      iconName: 'analytics',
+                      color: theme.colorScheme.primary,
+                      size: 24,
+                    ),
+                  ),
+                  SizedBox(width: 3.w),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'Nutritional Breakdown',
+                          style: theme.textTheme.titleMedium?.copyWith(
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                        SizedBox(height: 0.5.h),
+                        Text(
+                          _showNutritionBreakdown
+                              ? 'Tap to collapse'
+                              : 'Tap to view detailed nutrition info',
+                          style: theme.textTheme.bodySmall?.copyWith(
+                            color: theme.colorScheme.onSurfaceVariant,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  Icon(
+                    _showNutritionBreakdown
+                        ? Icons.expand_less
+                        : Icons.expand_more,
+                    color: theme.colorScheme.primary,
+                  ),
+                ],
+              ),
+            ),
+          ),
+          if (_showNutritionBreakdown) ...[
+            const Divider(height: 1),
+            _isLoadingNutrition
+                ? Padding(
+                    padding: EdgeInsets.all(4.w),
+                    child: Column(
+                      children: [
+                        CircularProgressIndicator(
+                          color: theme.colorScheme.primary,
+                        ),
+                        SizedBox(height: 2.h),
+                        Text(
+                          'Analyzing nutrition data...',
+                          style: theme.textTheme.bodyMedium?.copyWith(
+                            color: theme.colorScheme.onSurfaceVariant,
+                          ),
+                        ),
+                      ],
+                    ),
+                  )
+                : _nutritionData.isEmpty
+                    ? Padding(
+                        padding: EdgeInsets.all(4.w),
+                        child: Text(
+                          'No nutrition data available',
+                          style: theme.textTheme.bodyMedium?.copyWith(
+                            color: theme.colorScheme.onSurfaceVariant,
+                          ),
+                        ),
+                      )
+                    : _buildNutritionContent(theme),
+          ],
+        ],
+      ),
+    );
+  }
+
+  Widget _buildNutritionContent(ThemeData theme) {
+    final nutrition = _nutritionData.first;
+    final foodName = nutrition['foodName'] as String? ?? 'Combined Foods';
+    final servingSize = nutrition['servingSize'] as String? ?? '1 serving';
+    final calories = nutrition['calories'] as num? ?? 0;
+    final protein = nutrition['protein'] as num? ?? 0;
+    final carbs = nutrition['carbs'] as num? ?? 0;
+    final fat = nutrition['fat'] as num? ?? 0;
+    final fiber = nutrition['fiber'] as num? ?? 0;
+    final sugar = nutrition['sugar'] as num? ?? 0;
+    final sodium = nutrition['sodium'] as num? ?? 0;
+
+    return Padding(
+      padding: EdgeInsets.all(4.w),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Food name and serving
+          Container(
+            padding: EdgeInsets.all(3.w),
+            decoration: BoxDecoration(
+              color: theme.colorScheme.primaryContainer.withValues(alpha: 0.3),
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Expanded(
+                  child: Text(
+                    foodName,
+                    style: theme.textTheme.titleMedium?.copyWith(
+                      fontWeight: FontWeight.bold,
+                      color: theme.colorScheme.primary,
+                    ),
+                  ),
+                ),
+                Container(
+                  padding: EdgeInsets.symmetric(horizontal: 3.w, vertical: 1.h),
+                  decoration: BoxDecoration(
+                    color: theme.colorScheme.primary,
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Text(
+                    servingSize,
+                    style: theme.textTheme.bodySmall?.copyWith(
+                      color: Colors.white,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+
+          SizedBox(height: 2.h),
+
+          // Calories - Featured
+          Container(
+            padding: EdgeInsets.all(3.w),
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                colors: [
+                  theme.colorScheme.secondary.withValues(alpha: 0.2),
+                  theme.colorScheme.tertiary.withValues(alpha: 0.2),
+                ],
+              ),
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Icon(
+                  Icons.local_fire_department,
+                  color: theme.colorScheme.secondary,
+                  size: 28,
+                ),
+                SizedBox(width: 2.w),
+                Text(
+                  '$calories',
+                  style: theme.textTheme.headlineMedium?.copyWith(
+                    fontWeight: FontWeight.bold,
+                    color: theme.colorScheme.secondary,
+                  ),
+                ),
+                SizedBox(width: 2.w),
+                Text(
+                  'Calories',
+                  style: theme.textTheme.titleMedium?.copyWith(
+                    color: theme.colorScheme.secondary,
+                  ),
+                ),
+              ],
+            ),
+          ),
+
+          SizedBox(height: 2.h),
+
+          // Macronutrients Grid
+          Text(
+            'Macronutrients',
+            style: theme.textTheme.titleSmall?.copyWith(
+              fontWeight: FontWeight.bold,
+              color: theme.colorScheme.onSurfaceVariant,
+            ),
+          ),
+          SizedBox(height: 1.h),
+          Row(
+            children: [
+              Expanded(
+                child: _buildNutrientCard(
+                  theme: theme,
+                  label: 'Protein',
+                  value: '${protein}g',
+                  icon: Icons.fitness_center,
+                  color: Colors.blue,
+                ),
+              ),
+              SizedBox(width: 2.w),
+              Expanded(
+                child: _buildNutrientCard(
+                  theme: theme,
+                  label: 'Carbs',
+                  value: '${carbs}g',
+                  icon: Icons.grain,
+                  color: Colors.orange,
+                ),
+              ),
+              SizedBox(width: 2.w),
+              Expanded(
+                child: _buildNutrientCard(
+                  theme: theme,
+                  label: 'Fat',
+                  value: '${fat}g',
+                  icon: Icons.water_drop,
+                  color: Colors.amber,
+                ),
+              ),
+            ],
+          ),
+
+          SizedBox(height: 2.h),
+
+          // Other nutrients
+          Text(
+            'Additional Info',
+            style: theme.textTheme.titleSmall?.copyWith(
+              fontWeight: FontWeight.bold,
+              color: theme.colorScheme.onSurfaceVariant,
+            ),
+          ),
+          SizedBox(height: 1.h),
+          _buildNutrientRow(theme, 'Fiber', '${fiber}g', Icons.spa),
+          _buildNutrientRow(theme, 'Sugar', '${sugar}g', Icons.bakery_dining),
+          _buildNutrientRow(theme, 'Sodium', '${sodium}mg', Icons.water),
+
+          SizedBox(height: 1.h),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildNutrientCard({
+    required ThemeData theme,
+    required String label,
+    required String value,
+    required IconData icon,
+    required Color color,
+  }) {
+    return Container(
+      padding: EdgeInsets.all(3.w),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.1),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: color.withValues(alpha: 0.3)),
+      ),
+      child: Column(
+        children: [
+          Icon(icon, color: color, size: 24),
+          SizedBox(height: 1.h),
+          Text(
+            value,
+            style: theme.textTheme.titleLarge?.copyWith(
+              fontWeight: FontWeight.bold,
+              color: color,
+            ),
+          ),
+          SizedBox(height: 0.5.h),
+          Text(
+            label,
+            style: theme.textTheme.bodySmall?.copyWith(
+              color: theme.colorScheme.onSurfaceVariant,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildNutrientRow(
+    ThemeData theme,
+    String label,
+    String value,
+    IconData icon,
+  ) {
+    return Padding(
+      padding: EdgeInsets.symmetric(vertical: 1.h),
+      child: Row(
+        children: [
+          Icon(
+            icon,
+            size: 20,
+            color: theme.colorScheme.onSurfaceVariant,
+          ),
+          SizedBox(width: 3.w),
+          Expanded(
+            child: Text(
+              label,
+              style: theme.textTheme.bodyMedium,
+            ),
+          ),
+          Text(
+            value,
+            style: theme.textTheme.bodyMedium?.copyWith(
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+        ],
+      ),
     );
   }
 }

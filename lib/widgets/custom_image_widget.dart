@@ -10,7 +10,9 @@ extension ImageTypeExtension on String {
       return ImageType.network;
     } else if (endsWith('.svg')) {
       return ImageType.svg;
-    } else if (startsWith('file: //')) {
+    } else if (startsWith('file://') || 
+               startsWith('/') || 
+               (length > 2 && this[1] == ':')) { // Check for absolute paths (Unix: /path or Windows: C:\path)
       return ImageType.file;
     } else {
       return ImageType.png;
@@ -139,6 +141,15 @@ class CustomImageWidget extends StatelessWidget {
             fit: fit ?? BoxFit.cover,
             color: color,
             semanticLabel: semanticLabel,
+            errorBuilder: (context, error, stackTrace) =>
+                errorWidget ??
+                Image.asset(
+                  placeHolder,
+                  height: height,
+                  width: width,
+                  fit: fit ?? BoxFit.cover,
+                  semanticLabel: semanticLabel,
+                ),
           );
         case ImageType.network:
           return CachedNetworkImage(
